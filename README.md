@@ -1,150 +1,150 @@
-# Acanthopys: Generador de Parsers PEG
+*# Acanthopys: PEG Parser Generator
 
-Acanthopys es una herramienta profesional para la generación de parsers Packrat (PEG) en Python. Diseñada para ser simple, elegante y potente, permite definir gramáticas complejas, probarlas de forma integrada y generar código Python optimizado y listo para usar.
+Acanthopys is a professional tool for generating Packrat (PEG) parsers in Python. Designed to be simple, elegant, and powerful, it allows defining complex grammars, testing them integrally, and generating optimized Python code ready to use.
 
-## Características Principales
+## Main Features
 
-*   **Gramáticas PEG**: Soporte completo para Parsing Expression Grammars, eliminando la ambigüedad.
-*   **Memoización (Packrat)**: Garantiza un tiempo de ejecución lineal O(n) mediante el cacheo de resultados.
-*   **Tests Integrados**: Define casos de prueba directamente en el archivo de gramática para un desarrollo TDD (Test Driven Development) fluido.
-*   **Generación de AST**: Creación automática de nodos del Árbol de Sintaxis Abstracta (AST) con una representación limpia y legible.
-*   **Múltiples Gramáticas**: Soporte para definir múltiples gramáticas en un solo archivo `.apy`.
-*   **CLI Robusta**: Interfaz de línea de comandos con colores, flags y reportes de error detallados.
+- **PEG Grammars**: Full support for Parsing Expression Grammars, eliminating ambiguity.
+- **Memoization (Packrat)**: Guarantees linear O(n) runtime through result caching.
+- **Integrated Tests**: Define test cases directly in the grammar file for smooth TDD (Test Driven Development).
+- **AST Generation**: Automatic creation of Abstract Syntax Tree (AST) nodes with a clean and readable representation.
+- **Multiple Grammars**: Support for defining multiple grammars in a single .apy file.
+- **Robust CLI**: Command-line interface with colors, flags, and detailed error reports.
 
-## Instalación
+## Installation
 
-No requiere instalación compleja. Asegúrate de tener Python 3.8+ instalado.
+No complex installation required. Make sure you have Python 3.8+ installed.
 
 ```bash
 git clone https://github.com/Andres95123/Acanthopys.git
 cd acanthopys
 ```
 
-## Uso Básico
+## Basic Usage
 
-### 1. Definir la Gramática (`.apy`)
+### 1. Define the Grammar (.apy)
 
-Crea un archivo con extensión `.apy`. La estructura básica es:
+Create a file with .apy extension. The basic structure is:
 
 ```acantho
-grammar NombreGramatica:
+grammar GrammarName:
     tokens:
-        # Definición de tokens (Nombre: Regex)
-        # Importante: El orden importa (prioridad de arriba a abajo)
+        # Token definitions (Name: Regex)
+        # Important: Order matters (priority from top to bottom)
         NUMBER: \d+
         PLUS: \+
-        WS: skip \s+  # 'skip' ignora el token (útil para espacios)
+        WS: skip \s+  # 'skip' ignores the token (useful for spaces)
     end
 
-    # 'start rule' define el punto de entrada del parser
+    # 'start rule' defines the parser's entry point
     start rule StartRule:
-        # Reglas de producción
+        # Production rules
         | left:Term PLUS right:StartRule -> AddNode(left, right)
-        | child:Term -> pass  # 'pass' eleva el resultado sin crear nodo
+        | child:Term -> pass  # 'pass' promotes the result without creating a node
     end
 
     rule Term:
         | value:NUMBER -> NumberNode(float(value))
     end
 
-    # Test suite para la regla por defecto (StartRule)
-    test MisTests:
+    # Test suite for the default rule (StartRule)
+    test MyTests:
         "1 + 2" => Yields(AddNode(NumberNode(1.0), NumberNode(2.0)))
         "1 + a" => Fail
     end
 
-    # Test suite especifico para una regla (Term)
+    # Specific test suite for a rule (Term)
     test TermTests Term:
         "42" => Yields(NumberNode(42.0))
     end
 end
 ```
 
-### 2. Generar el Parser
+### 2. Generate the Parser
 
-Ejecuta el script principal pasando tu archivo de gramática:
+Run the main script passing your grammar file:
 
 ```bash
-python acanthopys/main.py mi_gramatica.apy
+python acanthopys/main.py my_grammar.apy
 ```
 
-Esto generará un archivo `NombreGramatica_parser.py` en el directorio actual (o el especificado con `-o`).
+This will generate a file `GrammarName_parser.py` in the current directory (or specified with -o).
 
-### 3. Opciones del CLI
+### 3. CLI Options
 
-*   `input`: Archivo de entrada `.apy`.
-*   `-o`, `--output`: Directorio de salida para los archivos generados (default: `.`).
-*   `--no-tests`: Desactiva la ejecución de los tests integrados (no recomendado).
-*   `--tests`: Ejecuta solo los tests sin generar el archivo parser. Ideal para desarrollo iterativo y CI/CD.
+- `input`: Input .apy file.
+- `-o`, `--output`: Output directory for generated files (default: `.`).
+- `--no-tests`: Disables running integrated tests (not recommended).
+- `--tests`: Runs only tests without generating the parser file. Ideal for iterative development and CI/CD.
 
-## Sintaxis Detallada
+## Detailed Syntax
 
 ### Tokens
-Los tokens se definen con expresiones regulares de Python.
-*   `NOMBRE: PATRON`
-*   `NOMBRE: skip PATRON` (El token se consume pero no se emite al parser).
+Tokens are defined with Python regex expressions.
+- `NAME: PATTERN`
+- `NAME: skip PATTERN` (The token is consumed but not emitted to the parser).
 
-**Importante:**
-1.  **Orden:** El orden de definición importa. Los tokens se evalúan de arriba a abajo. Define los tokens más específicos antes que los generales.
-    *   Ejemplo: `int` (palabra clave) debe ir antes que `[a-zA-Z_]\w*` (identificador general)
-    *   Ejemplo: `==` debe ir antes que `=`
-    *   Ejemplo: Comentarios deben ir al principio para que `/` no se tome como división
-2.  **Espacios:** El generador toma el patrón tal cual (incluyendo espacios). Si usas el operador `|` (OR), asegúrate de no dejar espacios alrededor a menos que quieras que el espacio sea parte del patrón.
-    *   Correcto: `COMMENT: //.*|/\*.*\*/`
-    *   Incorrecto (si no quieres espacios): `COMMENT: //.* | /\*.*\*/`
+**Important:**
+1. **Order:** Definition order matters. Tokens are evaluated from top to bottom. Define more specific tokens before general ones.
+   - Example: `int` (keyword) must go before `[a-zA-Z_]\w*` (general identifier)
+   - Example: `==` must go before `=`
+   - Example: Comments should go at the beginning so `/` is not taken as division
+2. **Spaces:** The generator takes the pattern as is (including spaces). If you use the `|` (OR) operator, make sure not to leave spaces around unless you want the space to be part of the pattern.
+   - Correct: `COMMENT: //.*|/\*.*\*/`
+   - Incorrect (if you don't want spaces): `COMMENT: //.* | /\*.*\*/`
 
-### Reglas (Rules)
-Las reglas definen la estructura sintáctica.
+### Rules
+Rules define the syntactic structure.
 
-*   **Start Rule**: Puedes marcar una regla como `start rule Nombre:` para indicar que es el punto de entrada principal del parser.
-    *   Si **no se especifica**, se usará la primera regla definida (con un warning recomendando añadir `start`).
-    *   Si hay **múltiples** reglas marcadas con `start`, se genera un error.
-    *   Ejemplo: `start rule Expression:` marca `Expression` como el punto de entrada.
-*   `|` inicia una alternativa.
-*   `nombre:Tipo` captura un token o el resultado de otra regla en una variable.
-*   `-> Nodo` define qué nodo AST crear.
-    *   `-> NombreClase(arg1, arg2)`: Crea una instancia de `NombreClase`.
-    *   `-> pass`: Retorna el valor de la variable capturada.
-        *   Si hay una sola variable capturada, retorna su valor.
-        *   Si no hay variables pero hay un solo término no literal (ej. `| NUMBER -> pass` o `| '(' Expr ')' -> pass`), retorna el token/valor de ese término automáticamente.
-        *   Si no hay variables ni términos capturables, retorna `None`.
+- **Start Rule**: You can mark a rule as `start rule Name:` to indicate it is the main entry point of the parser.
+  - If **not specified**, the first defined rule will be used (with a warning recommending to add `start`).
+  - If there are **multiple** rules marked with `start`, an error is generated.
+  - Example: `start rule Expression:` marks `Expression` as the entry point.
+- `|` starts an alternative.
+- `name:Type` captures a token or the result of another rule in a variable.
+- `-> Node` defines which AST node to create.
+  - `-> ClassName(arg1, arg2)`: Creates an instance of `ClassName`.
+  - `-> pass`: Returns the value of the captured variable.
+    - If there is a single captured variable, returns its value.
+    - If there are no variables but a single non-literal term (e.g., `| NUMBER -> pass` or `| '(' Expr ')' -> pass`), returns the token/value of that term automatically.
+    - If there are no variables or capturable terms, returns `None`.
 
 ### Tests
-Los bloques `test` permiten verificar la gramática al momento de compilar.
+The `test` blocks allow verifying the grammar at compile time.
 
-Sintaxis: `test NombreSuite [ReglaObjetivo]:`
+Syntax: `test SuiteName [TargetRule]:`
 
-*   **ReglaObjetivo (Opcional)**: Si se especifica, los tests se ejecutarán contra esa regla específica en lugar de la regla de inicio. Esto es ideal para probar componentes aislados.
-    *   Ejemplo: `test operandTests Operand:` → prueba solo la regla `Operand`.
-    *   Si no se especifica, se usa la regla de inicio (marcada con `start` o la primera).
+- **TargetRule (Optional)**: If specified, tests will run against that specific rule instead of the start rule. Ideal for testing isolated components.
+  - Example: `test operandTests Operand:` → tests only the `Operand` rule.
+  - If not specified, the start rule is used (marked with `start` or the first one).
 
-Tipos de aserciones:
-*   `"input" => Success`: Espera que el parsing sea exitoso.
-*   `"input" => Fail`: Espera que el parsing falle (útil para probar errores de sintaxis).
-*   `"input" => Yields(Estructura)`: Espera que el AST resultante coincida exactamente con la estructura dada.
-    *   Ejemplo: `'x : int' => Yields(DeclarationNode('x', 'int'))`
-    *   **Wildcard `...`**: Puedes usar `...` dentro de un constructor para ignorar los argumentos internos:
-        *   `'2 + 8' => Yields(AdditionNode(...))` → Verifica que el resultado sea un `AdditionNode` sin importar sus argumentos.
-        *   `'(1 + 2) * 3' => Yields(MultiplicationNode(AdditionNode(...), ...))` → Verifica la estructura pero ignora detalles internos.
-        *   Útil para tests de integración donde solo importa el tipo de nodo, no los valores exactos.
+Assertion types:
+- `"input" => Success`: Expects parsing to be successful.
+- `"input" => Fail`: Expects parsing to fail (useful for testing syntax errors).
+- `"input" => Yields(Structure)`: Expects the resulting AST to exactly match the given structure.
+  - Example: `'x : int' => Yields(DeclarationNode('x', 'int'))`
+  - **Wildcard `...`**: You can use `...` inside a constructor to ignore internal arguments:
+    - `'2 + 8' => Yields(AdditionNode(...))` → Verifies that the result is an `AdditionNode` regardless of its arguments.
+    - `'(1 + 2) * 3' => Yields(MultiplicationNode(AdditionNode(...), ...))` → Verifies the structure but ignores internal details.
+    - Useful for integration tests where only the node type matters, not exact values.
 
-**Importante sobre Yields:**
-1.  **Sintaxis Obligatoria:** Debes escribir `Yields(...)` - no puedes poner directamente el nodo.
-    *   ✅ Correcto: `"1 + 2" => Yields(AddNode(1, 2))`
-    *   ❌ Incorrecto: `"1 + 2" => AddNode(1, 2)`
-2.  **Representación de Tokens:** Los tokens se representan como strings con comillas simples.
-    *   Ejemplo: Si tu regla captura un `identifier`, el test debe usar `'nombre'` no `"nombre"`
-    *   Ejemplo: `Variable('int', 'x')` para un token `int` y un identificador `x`
-3.  **Comparación Estricta:** La comparación es exacta, caracter por caracter (a menos que uses `...`).
+**Important about Yields:**
+1. **Mandatory Syntax:** You must write `Yields(...)` - you cannot put the node directly.
+   - ✅ Correct: `"1 + 2" => Yields(AddNode(1, 2))`
+   - ❌ Incorrect: `"1 + 2" => AddNode(1, 2)`
+2. **Token Representation:** Tokens are represented as strings with single quotes.
+   - Example: If your rule captures an `identifier`, the test must use `'name'` not `"name"`
+   - Example: `Variable('int', 'x')` for an `int` token and an `x` identifier
+3. **Strict Comparison:** The comparison is exact, character by character (unless using `...`).
 
-**Errores Comunes:**
-*   Olvidar `Yields(...)` → El sistema detectará y reportará un error de sintaxis
-*   Usar comillas dobles en lugar de simples para tokens → El test fallará mostrando la diferencia
-*   Errores de paréntesis → El sistema detectará paréntesis no balanceados
+**Common Errors:**
+- Forgetting `Yields(...)` → The system will detect and report a syntax error
+- Using double quotes instead of single for tokens → The test will fail showing the difference
+- Parenthesis errors → The system will detect unbalanced parentheses
 
-## Ejemplos
+## Examples
 
-### Calculadora Simple
+### Simple Calculator
 
 ```acantho
 grammar Calc:
@@ -161,7 +161,7 @@ grammar Calc:
     
     test CalcTests:
         "1 + 2" => Yields(Add(Num(1), Num(2)))
-        "5 + 3 + 2" => Yields(Add(...))  # Solo verifica que sea un Add
+        "5 + 3 + 2" => Yields(Add(...))  # Only verifies it's an Add
     end
     
     test NumTests Expr:
@@ -170,22 +170,22 @@ grammar Calc:
 end
 ```
 
-### Uso del Flag `--tests`
+### Using the --tests Flag
 
-Para desarrollo rápido, puedes ejecutar solo los tests sin generar el parser:
+For rapid development, you can run only the tests without generating the parser:
 
 ```bash
-# Ejecutar solo tests
-python acanthopys/main.py mi_gramatica.apy --tests
+# Run only tests
+python acanthopys/main.py my_grammar.apy --tests
 
-# Generar el parser (con tests automáticos)
-python acanthopys/main.py mi_gramatica.apy
+# Generate the parser (with automatic tests)
+python acanthopys/main.py my_grammar.apy
 
-# Generar sin ejecutar tests (no recomendado)
-python acanthopys/main.py mi_gramatica.apy --no-tests
+# Generate without running tests (not recommended)
+python acanthopys/main.py my_grammar.apy --no-tests
 ```
 
-### JSON Parser (Fragmento)
+### JSON Parser (Snippet)
 
 ```acantho
 grammar JSON:
@@ -202,11 +202,12 @@ grammar JSON:
 end
 ```
 
-## Limitaciones Conocidas
+## Known Limitations
 
-*   No soporta recursión izquierda directa (debido a la naturaleza PEG/Packrat).
-*   Las expresiones regulares de los tokens deben ser compatibles con el módulo `re` de Python.
+- Does not support direct left recursion (due to PEG/Packrat nature).
+- Token regex must be compatible with Python's `re` module.
 
-## Soporte en VS Code
+## VS Code Support
 
-Para obtener resaltado de sintaxis en archivos `.apy`, copia la carpeta `acantho-lang` a tu directorio de extensiones de VS Code (`~/.vscode/extensions/`).
+To get syntax highlighting for .apy files, copy the `acantho-lang` folder to your VS Code extensions directory (`~/.vscode/extensions/`).
+*
