@@ -16,7 +16,6 @@ The extension includes **Venom Linter**, a powerful static analysis tool that ch
 **Essential Checks:**
 - **Undefined References**: Detects rules or tokens used but not defined, with smart suggestions using Levenshtein distance ("Did you mean 'Addition'?")
 - **Unreachable Rules**: Identifies "orphan" rules that cannot be reached from the start rule
-- **Left Recursion**: Detects direct left recursion which is not supported by PEG parsers
 - **Missing Structure**: Checks for missing `grammar Name:` or `tokens:` blocks
 - **Duplicate Definitions**: Warns if tokens are defined multiple times
 - **Regex Validity**: Validates that token regex patterns are valid Python regular expressions

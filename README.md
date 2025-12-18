@@ -1,212 +1,206 @@
-# Acanthopys: PEG Parser Generator
+# Acanthophis 🐍
 
-Acanthopys is a professional tool for generating Packrat (PEG) parsers in Python. Designed to be simple, elegant, and powerful, it allows defining complex grammars, testing them integrally, and generating optimized Python code ready to use.
+**Acanthophis** is a modern, robust, and feature-rich **PEG (Parsing Expression Grammar) Parser Generator** for Python. 
 
-## Main Features
+It is designed to solve the common pitfalls of traditional PEG parsers by implementing advanced features like **Left Recursion Support** and **Automatic Error Recovery**, while maintaining a simple and elegant syntax.
 
-- **PEG Grammars**: Full support for Parsing Expression Grammars, eliminating ambiguity.
-- **Memoization (Packrat)**: Guarantees linear O(n) runtime through result caching.
-- **Integrated Tests**: Define test cases directly in the grammar file for smooth TDD (Test Driven Development).
-- **AST Generation**: Automatic creation of Abstract Syntax Tree (AST) nodes with a clean and readable representation.
-- **Multiple Grammars**: Support for defining multiple grammars in a single .apy file.
-- **Robust CLI**: Command-line interface with colors, flags, and detailed error reports.
+## ✨ Key Features
 
-## Installation
+- **🔄 Left Recursion Support**: Implements Warth's algorithm to handle direct left recursion. You can write natural grammars like `Expr: Expr + Term` without infinite loops.
+- **🛡️ Error Recovery**: Built-in "Panic Mode" recovery. The generated parsers don't just crash on the first error; they synchronize and report multiple issues.
+- **⚡ Packrat Memoization**: Guarantees linear **O(n)** parse time by caching results.
+- **🧪 Integrated TDD**: Define unit tests directly inside your grammar file. The generator verifies them before producing code.
+- **🌳 Clean AST Generation**: Automatically generates Python dataclasses for your Abstract Syntax Tree.
+- **🐍 Pure Python**: Generates standalone, dependency-free Python 3 code.
 
-No complex installation required. Make sure you have Python 3.8+ installed.
+---
+
+## 🚀 Getting Started
+
+### Installation
+
+Currently, Acanthophis is available via source. Clone the repository:
 
 ```bash
 git clone https://github.com/Andres95123/Acanthopys.git
-cd acanthopys
+cd Acanthopys
 ```
 
-## Basic Usage
+### Your First Grammar
 
-### 1. Define the Grammar (.apy)
+Create a file named `calc.apy`:
 
-Create a file with .apy extension. The basic structure is:
-
-```acantho
-grammar GrammarName:
+```acanthophis
+grammar Calculator:
     tokens:
-        # Token definitions (Name: Regex)
-        # Important: Order matters (priority from top to bottom)
         NUMBER: \d+
-        PLUS: \+
-        WS: skip \s+  # 'skip' ignores the token (useful for spaces)
-    end
-
-    # 'start rule' defines the parser's entry point
-    start rule StartRule:
-        # Production rules
-        | left:Term PLUS right:StartRule -> AddNode(left, right)
-        | child:Term -> pass  # 'pass' promotes the result without creating a node
-    end
-
-    rule Term:
-        | value:NUMBER -> NumberNode(float(value))
-    end
-
-    # Test suite for the default rule (StartRule)
-    test MyTests:
-        "1 + 2" => Yields(AddNode(NumberNode(1.0), NumberNode(2.0)))
-        "1 + a" => Fail
-    end
-
-    # Specific test suite for a rule (Term)
-    test TermTests Term:
-        "42" => Yields(NumberNode(42.0))
-    end
-end
-```
-
-### 2. Generate the Parser
-
-Run the main script passing your grammar file:
-
-```bash
-python acanthopys/main.py my_grammar.apy
-```
-
-This will generate a file `GrammarName_parser.py` in the current directory (or specified with -o).
-
-### 3. CLI Options
-
-- `input`: Input .apy file.
-- `-o`, `--output`: Output directory for generated files (default: `.`).
-- `--no-tests`: Disables running integrated tests (not recommended).
-- `--tests`: Runs only tests without generating the parser file. Ideal for iterative development and CI/CD.
-
-## Detailed Syntax
-
-### Tokens
-Tokens are defined with Python regex expressions.
-- `NAME: PATTERN`
-- `NAME: skip PATTERN` (The token is consumed but not emitted to the parser).
-
-**Important:**
-1. **Order:** Definition order matters. Tokens are evaluated from top to bottom. Define more specific tokens before general ones.
-   - Example: `int` (keyword) must go before `[a-zA-Z_]\w*` (general identifier)
-   - Example: `==` must go before `=`
-   - Example: Comments should go at the beginning so `/` is not taken as division
-2. **Spaces:** The generator takes the pattern as is (including spaces). If you use the `|` (OR) operator, make sure not to leave spaces around unless you want the space to be part of the pattern.
-   - Correct: `COMMENT: //.*|/\*.*\*/`
-   - Incorrect (if you don't want spaces): `COMMENT: //.* | /\*.*\*/`
-
-### Rules
-Rules define the syntactic structure.
-
-- **Start Rule**: You can mark a rule as `start rule Name:` to indicate it is the main entry point of the parser.
-  - If **not specified**, the first defined rule will be used (with a warning recommending to add `start`).
-  - If there are **multiple** rules marked with `start`, an error is generated.
-  - Example: `start rule Expression:` marks `Expression` as the entry point.
-- `|` starts an alternative.
-- `name:Type` captures a token or the result of another rule in a variable.
-- `-> Node` defines which AST node to create.
-  - `-> ClassName(arg1, arg2)`: Creates an instance of `ClassName`.
-  - `-> pass`: Returns the value of the captured variable.
-    - If there is a single captured variable, returns its value.
-    - If there are no variables but a single non-literal term (e.g., `| NUMBER -> pass` or `| '(' Expr ')' -> pass`), returns the token/value of that term automatically.
-    - If there are no variables or capturable terms, returns `None`.
-
-### Tests
-The `test` blocks allow verifying the grammar at compile time.
-
-Syntax: `test SuiteName [TargetRule]:`
-
-- **TargetRule (Optional)**: If specified, tests will run against that specific rule instead of the start rule. Ideal for testing isolated components.
-  - Example: `test operandTests Operand:` → tests only the `Operand` rule.
-  - If not specified, the start rule is used (marked with `start` or the first one).
-
-Assertion types:
-- `"input" => Success`: Expects parsing to be successful.
-- `"input" => Fail`: Expects parsing to fail (useful for testing syntax errors).
-- `"input" => Yields(Structure)`: Expects the resulting AST to exactly match the given structure.
-  - Example: `'x : int' => Yields(DeclarationNode('x', 'int'))`
-  - **Wildcard `...`**: You can use `...` inside a constructor to ignore internal arguments:
-    - `'2 + 8' => Yields(AdditionNode(...))` → Verifies that the result is an `AdditionNode` regardless of its arguments.
-    - `'(1 + 2) * 3' => Yields(MultiplicationNode(AdditionNode(...), ...))` → Verifies the structure but ignores internal details.
-    - Useful for integration tests where only the node type matters, not exact values.
-
-**Important about Yields:**
-1. **Mandatory Syntax:** You must write `Yields(...)` - you cannot put the node directly.
-   - ✅ Correct: `"1 + 2" => Yields(AddNode(1, 2))`
-   - ❌ Incorrect: `"1 + 2" => AddNode(1, 2)`
-2. **Token Representation:** Tokens are represented as strings with single quotes.
-   - Example: If your rule captures an `identifier`, the test must use `'name'` not `"name"`
-   - Example: `Variable('int', 'x')` for an `int` token and an `x` identifier
-3. **Strict Comparison:** The comparison is exact, character by character (unless using `...`).
-
-**Common Errors:**
-- Forgetting `Yields(...)` → The system will detect and report a syntax error
-- Using double quotes instead of single for tokens → The test will fail showing the difference
-- Parenthesis errors → The system will detect unbalanced parentheses
-
-## Examples
-
-### Simple Calculator
-
-```acantho
-grammar Calc:
-    tokens:
-        NUM: \d+
         PLUS: \+
         WS: skip \s+
     end
 
     start rule Expr:
-        | l:NUM PLUS r:Expr -> Add(l, r)
-        | n:NUM -> Num(int(n))
+        | left:Expr PLUS right:Term -> Add(left, right)
+        | val:Term -> pass
     end
-    
-    test CalcTests:
+
+    rule Term:
+        | n:NUMBER -> Num(int(n))
+    end
+
+    test MyTests:
         "1 + 2" => Yields(Add(Num(1), Num(2)))
-        "5 + 3 + 2" => Yields(Add(...))  # Only verifies it's an Add
-    end
-    
-    test NumTests Expr:
-        "42" => Yields(Num(42))
+        "1 + 2 + 3" => Yields(Add(Add(Num(1), Num(2)), Num(3)))
     end
 end
 ```
 
-### Using the --tests Flag
+### Generate the Parser
 
-For rapid development, you can run only the tests without generating the parser:
+Run the generator CLI:
 
 ```bash
-# Run only tests
-python acanthopys/main.py my_grammar.apy --tests
-
-# Generate the parser (with automatic tests)
-python acanthopys/main.py my_grammar.apy
-
-# Generate without running tests (not recommended)
-python acanthopys/main.py my_grammar.apy --no-tests
+python acanthophis/main.py calc.apy
 ```
 
-### JSON Parser (Snippet)
+This will:
+1. Parse your grammar.
+2. **Run the integrated tests** (`MyTests`).
+3. If tests pass, generate `Calculator_parser.py`.
 
-```acantho
-grammar JSON:
-    tokens:
-        STR: "[^"]*"
-        ...
-    end
+### Use the Parser
 
-    rule Value:
-        | s:STR -> StringNode(s)
-        | n:NUMBER -> NumberNode(float(n))
-        ...
-    end
+```python
+from Calculator_parser import Parser, Lexer
+
+text = "10 + 20"
+lexer = Lexer(text)
+parser = Parser(lexer.tokens)
+ast = parser.parse_Expr()
+
+print(ast)
+# Output: Add(Num(10), Num(20))
+```
+
+---
+
+## 📖 Language Reference
+
+Acanthophis uses a custom `.apy` file format that is intuitive and concise.
+
+### 1. Tokens
+Defined in the `tokens` block using Python Regex.
+*   **Priority**: Top-to-bottom. Define specific keywords before general identifiers.
+*   **Skip**: Use `skip` to ignore tokens (like whitespace) in the AST, though they are still consumed.
+
+```acanthophis
+tokens:
+    IF: if              # Keyword
+    ID: [a-z]+          # Identifier
+    WS: skip \s+        # Ignored
 end
 ```
 
-## Known Limitations
+### 2. Rules
+Rules define the structure of your language.
+*   **`start rule`**: Marks the entry point of the grammar.
+*   **Operators**:
+    *   `name:Rule` : Match `Rule` and bind result to `name`.
+    *   `Rule?` : Optional (0 or 1).
+    *   `Rule*` : Zero or more.
+    *   `Rule+` : One or more.
+    *   `|` : Ordered choice (Try first, if fails, try next).
 
-- Does not support direct left recursion (due to PEG/Packrat nature).
-- Token regex must be compatible with Python's `re` module.
+### 3. AST Actions (`->`)
+Define how to build the AST node for a rule.
+*   `-> NodeName(arg1, arg2)`: Creates a class `NodeName` with the given arguments.
+*   `-> pass`: Returns the value of the matched child directly (useful for wrapper rules).
 
-## VS Code Support
+```acanthophis
+rule Atom:
+    | n:NUMBER -> Num(n)
+    | LPAREN e:Expr RPAREN -> pass  # Returns 'e' directly
+end
+```
 
-To get syntax highlighting for .apy files, copy the `acantho-lang` folder to your VS Code extensions directory (`~/.vscode/extensions/`).
+### 4. Integrated Tests
+Write tests to ensure your grammar works as expected.
+*   `Yields(...)`: Asserts the parse result matches the structure.
+*   `Fail`: Asserts the input fails to parse.
+
+```acanthophis
+test MathTests Expr:
+    "1+1" => Yields(Add(Num(1), Num(1)))
+    "1+"  => Fail
+end
+```
+
+---
+
+## 🛠️ Advanced Features
+
+### Left Recursion
+Traditional PEG parsers cannot handle left recursion (e.g., `A <- A 'b' / 'a'`). Acanthophis **can**.
+This allows you to write left-associative operators naturally:
+
+```acanthophis
+# This works perfectly!
+rule Expr:
+    | left:Expr MINUS right:Term -> Sub(left, right)
+    | t:Term -> pass
+end
+```
+Input `1 - 2 - 3` parses as `((1 - 2) - 3)`.
+
+### Error Recovery
+By default, generated parsers include error recovery. If a syntax error occurs, the parser attempts to synchronize and continue parsing to report multiple errors.
+
+*   **Disable**: Use `--no-recovery` flag in CLI.
+*   **Runtime**: Pass `enable_recovery=True` to the `Parser` constructor.
+
+---
+
+## 🧰 Tools
+
+### CLI Usage
+```bash
+python acanthophis/main.py [input_file] [options]
+```
+
+| Option          | Description                                  |
+| --------------- | -------------------------------------------- |
+| `-o DIR`        | Output directory for generated files.        |
+| `--tests`       | Run **only** the tests (no code generation). |
+| `--no-tests`    | Skip running tests.                          |
+| `--no-recovery` | Disable error recovery generation.           |
+| `--dry-run`     | Simulate process without writing files.      |
+
+### Interactive REPL
+A powerful REPL is included to test your grammars interactively with AST visualization and error reporting.
+
+```bash
+python demo/repl.py
+```
+*   Edit `demo/repl.py` to point to your generated parser module if needed.
+
+---
+
+## 📂 Project Structure
+
+```
+Acanthophis/
+├── acanthophis/          # Core Source Code
+│   ├── main.py           # Entry point
+│   ├── parser/           # The Grammar Parser (bootstrapping)
+│   └── utils/
+│       └── generators/   # Code Generators (Python)
+├── demo/                 # Examples & Tools
+│   ├── calculator.apy    # Advanced Demo Grammar
+│   └── repl.py           # Interactive REPL
+└── tests/                # Unit Tests
+```
+
+---
+
+## 📄 License
+
+MIT License. Free to use and modify.

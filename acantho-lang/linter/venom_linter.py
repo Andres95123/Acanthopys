@@ -212,18 +212,13 @@ class VenomLinter:
                 )
 
     def check_left_recursion(self):
-        """Detects if a rule calls itself at the beginning (Left Recursion)."""
-        for name, data in self.rules.items():
-            for expr in data["expressions"]:
-                if not expr.terms:
-                    continue
+        """
+        Detects if a rule calls itself at the beginning (Left Recursion).
 
-                first_term = expr.terms[0]
-                if first_term.object_related == name:
-                    self.add_diagnostic(
-                        data["line"],
-                        f"Left recursion detected in '{name}'. Acanthopys requires reformulated grammars.",
-                    )
+        NOTE: Acanthophis now supports direct left recursion via Warth's algorithm.
+        This check is disabled/deprecated but kept for reference or potential future warnings about indirect recursion.
+        """
+        pass
 
     def check_naming_conventions(self):
         """Checks if Tokens are UPPERCASE and Rules are PascalCase."""
