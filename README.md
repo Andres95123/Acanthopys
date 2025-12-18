@@ -203,4 +203,4 @@ Acanthophis/
 
 ## 📄 License
 
-MIT License. Free to use and modify.
+BSD Licence
