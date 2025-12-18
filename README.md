@@ -8,7 +8,7 @@ Acanthopys es una herramienta profesional para la generación de parsers Packrat
 *   **Memoización (Packrat)**: Garantiza un tiempo de ejecución lineal O(n) mediante el cacheo de resultados.
 *   **Tests Integrados**: Define casos de prueba directamente en el archivo de gramática para un desarrollo TDD (Test Driven Development) fluido.
 *   **Generación de AST**: Creación automática de nodos del Árbol de Sintaxis Abstracta (AST) con una representación limpia y legible.
-*   **Múltiples Gramáticas**: Soporte para definir múltiples gramáticas en un solo archivo `.acantho`.
+*   **Múltiples Gramáticas**: Soporte para definir múltiples gramáticas en un solo archivo `.apy`.
 *   **CLI Robusta**: Interfaz de línea de comandos con colores, flags y reportes de error detallados.
 
 ## Instalación
@@ -22,9 +22,9 @@ cd acanthopys
 
 ## Uso Básico
 
-### 1. Definir la Gramática (`.acantho`)
+### 1. Definir la Gramática (`.apy`)
 
-Crea un archivo con extensión `.acantho`. La estructura básica es:
+Crea un archivo con extensión `.apy`. La estructura básica es:
 
 ```acantho
 grammar NombreGramatica:
@@ -65,14 +65,14 @@ end
 Ejecuta el script principal pasando tu archivo de gramática:
 
 ```bash
-python acanthopys/main.py mi_gramatica.acantho
+python acanthopys/main.py mi_gramatica.apy
 ```
 
 Esto generará un archivo `NombreGramatica_parser.py` en el directorio actual (o el especificado con `-o`).
 
 ### 3. Opciones del CLI
 
-*   `input`: Archivo de entrada `.acantho`.
+*   `input`: Archivo de entrada `.apy`.
 *   `-o`, `--output`: Directorio de salida para los archivos generados (default: `.`).
 *   `--no-tests`: Desactiva la ejecución de los tests integrados (no recomendado).
 *   `--tests`: Ejecuta solo los tests sin generar el archivo parser. Ideal para desarrollo iterativo y CI/CD.
@@ -176,13 +176,13 @@ Para desarrollo rápido, puedes ejecutar solo los tests sin generar el parser:
 
 ```bash
 # Ejecutar solo tests
-python acanthopys/main.py mi_gramatica.acantho --tests
+python acanthopys/main.py mi_gramatica.apy --tests
 
 # Generar el parser (con tests automáticos)
-python acanthopys/main.py mi_gramatica.acantho
+python acanthopys/main.py mi_gramatica.apy
 
 # Generar sin ejecutar tests (no recomendado)
-python acanthopys/main.py mi_gramatica.acantho --no-tests
+python acanthopys/main.py mi_gramatica.apy --no-tests
 ```
 
 ### JSON Parser (Fragmento)
@@ -209,4 +209,4 @@ end
 
 ## Soporte en VS Code
 
-Para obtener resaltado de sintaxis en archivos `.acantho`, copia la carpeta `acantho-lang` a tu directorio de extensiones de VS Code (`~/.vscode/extensions/`).
+Para obtener resaltado de sintaxis en archivos `.apy`, copia la carpeta `acantho-lang` a tu directorio de extensiones de VS Code (`~/.vscode/extensions/`).
