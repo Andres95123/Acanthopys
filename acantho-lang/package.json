@@ -1,0 +1,25 @@
+{
+  "name": "acantho-lang",
+  "displayName": "Acanthophis Language",
+  "description": "Syntax highlighting for Acanthophis (.apy) grammar files",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.0.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [{
+      "id": "acanthophis",
+      "aliases": ["Acantho", "acantho", "Apy", "apy", "Acanthophis", "acanthophis", "Acanthophis" ,"acanthophys"],
+      "extensions": [".apy"],
+      "configuration": "./language-configuration.json"
+    }],
+    "grammars": [{
+      "language": "acanthophis",
+      "scopeName": "source.acanthophis",
+      "path": "./syntaxes/acanthophis.tmLanguage.json"
+    }]
+  }
+}

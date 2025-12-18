@@ -1,0 +1,107 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "acanthophis",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#tokens_block"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#rules"
+    }
+  ],
+  "repository": {
+    "tokens_block": {
+      "begin": "^\\s*(tokens)\\s*:",
+      "beginCaptures": { "1": { "name": "keyword.control.acanthophis" } },
+      "end": "^\\s*(end)\\b",
+      "endCaptures": { "1": { "name": "keyword.control.acanthophis" } },
+      "patterns": [
+        {
+          "match": "^\\s*(\\w+)\\s*:\\s*(skip\\s+)?(.*)$",
+          "captures": {
+            "1": { "name": "variable.other.enummember.acanthophis" },
+            "2": { "name": "keyword.other.skip.acanthophis" },
+            "3": { "name": "string.regexp.acanthophis" }
+          }
+        },
+        { "include": "#comments" }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.acanthophis",
+          "match": "\\b(grammar|tokens|rule|test|end|skip|pass|start)\\b"
+        },
+        {
+          "name": "keyword.operator.arrow.acanthophis",
+          "match": "->|=>"
+        },
+        {
+          "name": "support.type.acanthophis",
+          "match": "\\b(Success|Fail|Yields)\\b"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.acanthophis",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.acanthophis",
+              "match": "\\\\."
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.acanthophis",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "name": "constant.character.escape.acanthophis",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "comments": {
+      "name": "comment.line.number-sign.acanthophis",
+      "match": "#.*$"
+    },
+    "rules": {
+      "patterns": [
+        {
+          "match": "\\b([A-Z][a-zA-Z0-9_]*)\\b",
+          "name": "entity.name.type.class.acanthophis"
+        },
+        {
+          "match": "\\b([a-z][a-zA-Z0-9_]*)\\b",
+          "name": "variable.parameter.acanthophis"
+        },
+        {
+          "match": ":",
+          "name": "punctuation.separator.key-value.acanthophis"
+        },
+        {
+          "match": "\\|",
+          "name": "keyword.operator.or.acanthophis"
+        }
+      ]
+    }
+  },
+  "scopeName": "source.acanthophis"
+}
