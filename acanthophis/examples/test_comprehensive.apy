@@ -1,0 +1,69 @@
+grammar ComprehensiveTest:
+    tokens:
+    # Shadowing test
+        IF: 'if'
+
+        NUMBER: \d+
+        PLUS: \+
+
+    # Unused token
+        UNUSED: @@@
+
+        ID: [a-zA-Z_]\w*
+        WS: skip \s+
+    end
+
+
+    start rule Program:
+        | stmt:Statement -> ProgramNode(stmt)
+    end
+
+
+    rule Statement:
+        | IF expr:Expression -> IfNode(expr)
+        | expr:Expression -> pass
+    end
+
+
+    rule Expression:
+        | left:Term PLUS right:Expression -> AddNode(left, right)
+        | term:Term -> pass
+    end
+
+
+    rule Term:
+        | value:NUMBER -> NumNode(value)
+        | name:ID -> IdNode(name)
+    end
+
+# Nullable rule (matches empty)
+
+
+    rule NullableRule:
+        |  -> pass
+    end
+
+# Hidden Left Recursion via NullableRule
+# A -> NullableRule A
+
+
+    rule HiddenRecursion:
+        | NullableRule HiddenRecursion -> BadNode()
+        | NUMBER -> NumNode(value)
+    end
+
+# Critical Backtracking
+# Common prefix 'NUMBER'
+
+
+    rule Backtracking:
+        | NUMBER PLUS Term -> AddNode()
+        | NUMBER Term -> MulNode()
+        | Program -> pass
+    end
+
+
+    test ProgramTests:
+        "if 1" => Success
+    end
+end

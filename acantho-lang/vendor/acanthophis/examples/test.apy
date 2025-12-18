@@ -1,0 +1,62 @@
+grammar LinterShowcase:
+
+    tokens:
+    # 1. Error de Naming: Los tokens deben ser MAYÚSCULAS
+        IDENTIFIER: [a-z0-9]+
+
+    # 2. Token correcto
+        NUMBER: \d+
+
+    # 3. Error de Duplicado: Definimos PLUS dos veces
+        PLUS: \+
+        MINUS: \-
+
+    # 4. Error de Regex Inválido: Un cuantificador repetido o mal cerrado
+        BROKEN_REGEX: [0-9+]+
+
+    # Token para usar en las reglas
+        ASSIGN: =
+        WS: skip \s+
+    end
+
+# 5. Información: El linter detectará que falta la 'start rule'
+# y usará la primera que encuentre (EntryNode).
+
+
+    rule EntryNode:
+        | ValidRule -> pass
+    # 6. Error de Referencia: 'MissingRule' no existe
+        | MissingRule -> pass
+    # 7. Error de Referencia: 'undefined_token' no está en la sección tokens
+        | undefined_token -> pass
+    end
+
+
+    rule ValidRule:
+        | identifier ASSIGN NUMBER
+    end
+
+# 8. Error de Recursión Izquierda: La regla se llama a sí misma al inicio
+
+
+    rule RecursiveRule:
+        | RecursiveRule PLUS NUMBER
+        | NUMBER
+    end
+
+# 9. Advertencia de Naming: Las reglas deben ser PascalCase
+
+
+    rule lowercase_rule:
+        | NUMBER
+    end
+
+# 10. Advertencia de Regla Huérfana (Orphan):
+# Esta regla existe pero nadie la llama desde la jerarquía de la regla inicial.
+
+
+    rule IsolatedRule:
+        | NUMBER
+    end
+
+end

@@ -1,182 +1,15 @@
-import re
 import ast
-
-
-class Token:
-    def __init__(self, name: str, skip: bool, pattern: str) -> None:
-        self.name = name
-        self.skip = skip
-        self.pattern = pattern
-
-
-class Term:
-    def __init__(self, object_related: str, variable: str) -> None:
-        self.object_related = object_related
-        self.variable = variable
-
-
-class Expression:
-    def __init__(self, terms: list[Term], return_object: str) -> None:
-        self.terms = terms
-        self.return_object = return_object
-
-
-class Rule:
-    def __init__(
-        self, expressions: list[Expression], name: str, is_start: bool = False
-    ) -> None:
-        self.expressions = expressions
-        self.name = name
-        self.is_start = is_start
-
-
-class TestCase:
-    def __init__(
-        self,
-        input_text: str,
-        expectation: str,
-        expected_value: str = None,  # type: ignore
-    ) -> None:
-        self.input_text = input_text
-        self.expectation = expectation
-        self.expected_value = expected_value
-
-
-class TestSuite:
-    def __init__(
-        self,
-        name: str,
-        cases: list[TestCase],
-        target_rule: str = None,  # type: ignore
-    ) -> None:
-        self.name = name
-        self.cases = cases
-        self.target_rule = target_rule
-
-
-class Grammar:
-    def __init__(
-        self,
-        name: str,
-        tokens: list[Token],
-        rules: list[Rule],
-        tests: list[TestSuite] = [],
-    ) -> None:
-        self.name = name
-        self.tokens = tokens
-        self.rules = rules
-        self.tests = tests
-
-
-GRAMMAR_PATTERN = re.compile(
-    r"""
-    (?ms)               
-    ^\s*grammar\s+      
-    (\w+)               
-    \s*:\s*             
-    (.*?)               
-    ^end\b              
-    [^\n]*              
-""",
-    re.VERBOSE,
-)
-
-TOKENS_BLOCK_PATTERN = re.compile(
-    r"""
-    (?ms)
-    ^\s*tokens\s*:\s*   
-    (.*?)               
-    ^\s*end\b           
-    [^\n]*              
-""",
-    re.VERBOSE,
-)
-
-RULE_PATTERN = re.compile(
-    r"""
-    (?ms)
-    ^\s*
-    (start\s+)?         
-    rule\s+             
-    (\w+)               
-    \s*:\s*             
-    (.*?)               
-    ^\s*end\b           
-    [^\n]*              
-""",
-    re.VERBOSE,
-)
-
-TOKEN_LINE_PATTERN = re.compile(
-    r"""
-    (?m)
-    ^\s*                
-    (\w+)               
-    \s*:\s*             
-    (skip\s+)?          
-    ([^#\n]+)           
-    (?:\s*\#.*)?        
-    $
-""",
-    re.VERBOSE,
-)
-
-EXPRESSION_OPTION_PATTERN = re.compile(
-    r"""
-    (?m)
-    ^\s*\|\s*           
-    (.*?)\s*            
-    ->\s*               
-    ([^#\n]+)           
-    (?:\s*\#.*)?        
-    $
-""",
-    re.VERBOSE,
-)
-
-TERM_PATTERN = re.compile(
-    r"""
-    (?:                 
-        (\w+)           
-        :               
-    )?
-    (                   
-        \w+             
-        |               
-        '[^']*'         
-    )
-    """,
-    re.VERBOSE,
-)
-
-TEST_BLOCK_PATTERN = re.compile(
-    r"""
-    (?ms)
-    ^\s*test\s+         
-    (\w+)               
-    (?:
-        \s+             
-        (\w+)           
-    )?
-    \s*:\s*             
-    (.*?)               
-    ^\s*end\b           
-    [^\n]*              
-""",
-    re.VERBOSE,
-)
-
-TEST_CASE_START_PATTERN = re.compile(
-    r"""
-    ^\s*
-    (?:
-        "([^"]*)"       
-        |
-        '([^']*)'       
-    )
-    \s*=>\s*            
-    """,
-    re.VERBOSE | re.MULTILINE,
+import re
+from .models import Token, Term, Expression, Rule, TestCase, TestSuite, Grammar
+from .constants import (
+    GRAMMAR_PATTERN,
+    TOKENS_BLOCK_PATTERN,
+    RULE_PATTERN,
+    TOKEN_LINE_PATTERN,
+    EXPRESSION_OPTION_PATTERN,
+    TERM_PATTERN,
+    TEST_BLOCK_PATTERN,
+    TEST_CASE_START_PATTERN,
 )
 
 
@@ -187,44 +20,73 @@ class Parser:
     def parse(self, text: str) -> list[Grammar]:
         grammars: list[Grammar] = []
 
-        grammar_groups = GRAMMAR_PATTERN.findall(text)
+        grammar_matches = list(GRAMMAR_PATTERN.finditer(text))
 
-        for grammar_name, grammar_text in grammar_groups:
-            if grammar_groups is None:
-                raise Exception(
-                    "Any grammar section detected, add 'grammar NAME:' to your .acantho"
-                )
+        if not grammar_matches:
+            # Fallback or empty check? The original code raised exception if grammar_groups is None,
+            # but findall returns empty list if not found.
+            pass
 
-            token_groups = TOKENS_BLOCK_PATTERN.findall(grammar_text)
-            if token_groups is None:
+        for grammar_match in grammar_matches:
+            grammar_name = grammar_match.group(1)
+            grammar_text = grammar_match.group(2)
+            grammar_start_offset = grammar_match.start(2)
+
+            token_block_matches = list(TOKENS_BLOCK_PATTERN.finditer(grammar_text))
+            if not token_block_matches:
                 raise Exception(
                     "No tokens detected, add 'tokens:' to your file and start adding tokens 'NAME: PATTERN' under the tokens header"
                 )
 
             tokens: list[Token] = []
-            for token_text in token_groups:
-                token_groups = TOKEN_LINE_PATTERN.findall(token_text)
-                for name, skip, pattern in token_groups:
-                    tokens.append(Token(name, skip != "", pattern.strip()))
+            for token_block_match in token_block_matches:
+                token_body = token_block_match.group(1)
+                token_body_start_offset = (
+                    grammar_start_offset + token_block_match.start(1)
+                )
 
-            rules_groups = RULE_PATTERN.findall(grammar_text)
+                for token_match in TOKEN_LINE_PATTERN.finditer(token_body):
+                    name = token_match.group(1)
+                    skip = token_match.group(2)
+                    pattern = token_match.group(3)
+
+                    abs_offset = token_body_start_offset + token_match.start()
+                    line = text.count("\n", 0, abs_offset) + 1
+
+                    tokens.append(
+                        Token(
+                            name,
+                            skip is not None and skip.strip() != "",
+                            pattern.strip(),
+                            line,
+                        )
+                    )
+
+            rules_matches = list(RULE_PATTERN.finditer(grammar_text))
             rules: list[Rule] = []
             start_rules_count = 0
 
-            for start_keyword, rule_name, rule_text in rules_groups:
-                is_start = bool(start_keyword.strip())
+            for rule_match in rules_matches:
+                start_keyword = rule_match.group(1)
+                rule_name = rule_match.group(2)
+                rule_body = rule_match.group(3)
+
+                is_start = bool(start_keyword and start_keyword.strip())
                 if is_start:
                     start_rules_count += 1
 
+                rule_start_offset = grammar_start_offset + rule_match.start()
+                line = text.count("\n", 0, rule_start_offset) + 1
+
                 expressions: list[Expression] = []
                 for expresion_line, return_object in EXPRESSION_OPTION_PATTERN.findall(
-                    rule_text
+                    rule_body
                 ):
                     terms: list[Term] = []
                     for var_name, term_name in TERM_PATTERN.findall(expresion_line):
                         terms.append(Term(term_name, var_name))
                     expressions.append(Expression(terms, return_object.strip()))
-                rules.append(Rule(expressions, rule_name, is_start))
+                rules.append(Rule(expressions, rule_name, is_start, line))
 
             if start_rules_count > 1:
                 raise Exception(
@@ -249,10 +111,16 @@ class Parser:
             if start_rules_count == 0 and rules:
                 pass
 
-            test_groups = TEST_BLOCK_PATTERN.findall(grammar_text)
+            test_matches = list(TEST_BLOCK_PATTERN.finditer(grammar_text))
             tests: list[TestSuite] = []
-            for test_name, target_rule, test_body in test_groups:
+            for test_match in test_matches:
+                test_name = test_match.group(1)
+                target_rule = test_match.group(2)
+                test_body = test_match.group(3)
+
                 target_rule = target_rule.strip() if target_rule else None
+                test_body_start_offset = grammar_start_offset + test_match.start(3)
+
                 cases: list[TestCase] = []
 
                 starts = list(TEST_CASE_START_PATTERN.finditer(test_body))
@@ -282,6 +150,9 @@ class Parser:
                         end_idx = len(test_body)
 
                     expectation = test_body[start_idx:end_idx].strip()
+
+                    abs_offset = test_body_start_offset + match.start()
+                    line = text.count("\n", 0, abs_offset) + 1
 
                     try:
                         if match.group(1) is not None:
@@ -333,8 +204,8 @@ class Parser:
                             f"Must be 'Success', 'Fail', or 'Yields(...)'"
                         )
 
-                    cases.append(TestCase(input_text, exp_type, exp_val))  # type: ignore
-                tests.append(TestSuite(test_name, cases, target_rule))  # type: ignore
+                    cases.append(TestCase(input_text, exp_type, exp_val, line))
+                tests.append(TestSuite(test_name, cases, target_rule))
 
             grammars.append(Grammar(grammar_name, tokens, rules, tests))
 

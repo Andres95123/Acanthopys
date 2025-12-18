@@ -1,0 +1,38 @@
+grammar GrammarName:
+    tokens:
+    # Token definitions (Name: Regex)
+    # Important: Order matters (priority from top to bottom)
+        NUMBER: \d+
+        PLUS: \+
+        WS: skip \s+  # 'skip' ignores the token (useful for whitespace)
+    end
+
+# 'start rule' defines the parser's entry point
+
+
+    start rule StartRule:
+    # Production rules
+        | left:Term PLUS right:StartRule -> AddNode(left, right)
+        | child:Term -> pass  # 'pass' elevates the result without creating a node
+    end
+
+
+    rule Term:
+        | value:NUMBER -> NumberNode(float(value))
+    end
+
+# Test suite for the default rule (StartRule)
+
+
+    test MyTests:
+        "1 + 2" => Yields(AddNode(NumberNode(1.0), NumberNode(2.0)))
+        "1 + a" => Fail
+    end
+
+# Specific test suite for a rule (Term)
+
+
+    test TermTests Term:
+        "42" => Yields(NumberNode(42.0))
+    end
+end

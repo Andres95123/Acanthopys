@@ -1,13 +1,21 @@
 {
   "name": "acantho-lang",
   "displayName": "Acanthophis Language",
-  "description": "Syntax highlighting for Acanthophis (.apy) grammar files",
-  "version": "0.0.1",
+  "description": "Syntax highlighting and linter for Acanthophis (.apy) grammar files",
+  "version": "0.0.2",
   "engines": {
     "vscode": "^1.0.0"
   },
   "categories": [
-    "Programming Languages"
+    "Programming Languages",
+    "Linters"
+  ],
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:acanthophis"
   ],
   "contributes": {
     "languages": [{
@@ -20,6 +28,28 @@
       "language": "acanthophis",
       "scopeName": "source.acanthophis",
       "path": "./syntaxes/acanthophis.tmLanguage.json"
-    }]
+    }],
+    "commands": [
+      {
+        "command": "acanthophis.restartServer",
+        "title": "Acantho: Restart Language Server",
+        "category": "Acantho"
+      },
+      {
+        "command": "acanthophis.showAST",
+        "title": "Show AST",
+        "category": "Acantho",
+        "icon": "$(graph)"
+      }
+    ],
+    "menus": {
+      "editor/title/run": [
+        {
+          "command": "acanthophis.showAST",
+          "when": "resourceLangId == acanthophis",
+          "group": "navigation"
+        }
+      ]
+    }
   }
 }
