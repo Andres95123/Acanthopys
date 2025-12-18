@@ -26,29 +26,28 @@ grammar LinterShowcase:
     rule EntryNode:
         | ValidRule -> pass
     # 6. Error de Referencia: 'MissingRule' no existe
-        | MissingRule -> pass
     # 7. Error de Referencia: 'undefined_token' no está en la sección tokens
-        | undefined_token -> pass
+
     end
 
 
     rule ValidRule:
-        | identifier ASSIGN NUMBER
+        | IDENTIFIER ASSIGN NUMBER -> pass
     end
 
 # 8. Error de Recursión Izquierda: La regla se llama a sí misma al inicio
 
 
     rule RecursiveRule:
-        | RecursiveRule PLUS NUMBER
-        | NUMBER
+        | RecursiveRule PLUS NUMBER -> pass
+        | NUMBER -> pass
     end
 
 # 9. Advertencia de Naming: Las reglas deben ser PascalCase
 
 
     rule lowercase_rule:
-        | NUMBER
+        | NUMBER -> pass
     end
 
 # 10. Advertencia de Regla Huérfana (Orphan):
@@ -56,7 +55,7 @@ grammar LinterShowcase:
 
 
     rule IsolatedRule:
-        | NUMBER
+        | NUMBER -> pass
     end
 
 end
