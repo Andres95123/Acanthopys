@@ -7,9 +7,12 @@ class Token:
 
 
 class Term:
-    def __init__(self, object_related: str, variable: str) -> None:
+    def __init__(
+        self, object_related: str, variable: str, quantifier: str = None
+    ) -> None:
         self.object_related = object_related
         self.variable = variable
+        self.quantifier = quantifier
 
 
 class Expression:

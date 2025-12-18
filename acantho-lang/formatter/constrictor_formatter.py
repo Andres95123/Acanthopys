@@ -112,21 +112,31 @@ class ConstrictorFormatter:
 
             elif in_rule:
                 # Format rule alternative: | ... -> ...
-                if stripped.startswith("|"):
-                    # Split by ->
-                    parts = stripped.split("->")
-                    left = parts[0].strip()
+                # Check if it's an expression line (starts with | or is just terms)
+                # Heuristic: if it contains '->' it's definitely an expression.
+                # If it starts with '|', it's an expression.
+                # If it doesn't start with '|' but we are in a rule, it might be the first expression (implicit |)
 
-                    # Format left side (terms)
-                    # Ensure space after |
+                is_expression = (
+                    "->" in stripped
+                    or stripped.startswith("|")
+                    or (not stripped.startswith("#") and not stripped.startswith("end"))
+                )
+
+                if is_expression:
+                    if "->" in stripped:
+                        parts = stripped.split("->")
+                        left = parts[0].strip()
+                        right = parts[1].strip()
+                    else:
+                        left = stripped.strip()
+                        right = "pass"  # Auto-add pass
+
+                    # Ensure space after | if present
                     if left.startswith("|"):
                         left = "| " + left[1:].strip()
 
-                    if len(parts) > 1:
-                        right = parts[1].strip()
-                        output.append(self.indent * 2 + f"{left} -> {right}")
-                    else:
-                        output.append(self.indent * 2 + left)
+                    output.append(self.indent * 2 + f"{left} -> {right}")
                 else:
                     output.append(self.indent * 2 + stripped)
 

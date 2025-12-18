@@ -4,13 +4,34 @@ if TYPE_CHECKING:
     from parser import Grammar
 
 
-def generate_parser(grammar: "Grammar", literal_map: Dict[str, str]) -> str:
+def generate_parser(
+    grammar: "Grammar",
+    literal_map: Dict[str, str],
+    enable_recovery: bool = False,
+    sync_tokens: Dict[str, set] = None,
+) -> str:
     lines = []
     lines.append("class Parser:")
-    lines.append("    def __init__(self, tokens):")
+    lines.append("    def __init__(self, tokens, enable_recovery=False):")
     lines.append("        self.tokens = tokens")
     lines.append("        self.pos = 0")
     lines.append("        self.memo = {}")
+    lines.append("        self.enable_recovery = enable_recovery")
+    lines.append("        self.errors = []")
+    lines.append(
+        "        # Synchronization tokens for each rule (computed during generation)"
+    )
+
+    # Add synchronization token map if recovery is enabled
+    if sync_tokens:
+        lines.append("        self.sync_tokens = {")
+        for rule_name, tokens_set in sync_tokens.items():
+            tokens_repr = repr(sorted(list(tokens_set)))
+            lines.append(f"            '{rule_name}': {tokens_repr},")
+        lines.append("        }")
+    else:
+        lines.append("        self.sync_tokens = {}")
+
     lines.append("")
     lines.append("    def current(self):")
     lines.append("        if self.pos < len(self.tokens):")
@@ -27,8 +48,46 @@ def generate_parser(grammar: "Grammar", literal_map: Dict[str, str]) -> str:
     lines.append("    def expect(self, type_name):")
     lines.append("        token = self.consume(type_name)")
     lines.append("        if not token:")
-    lines.append("            raise ParseError(f'Expected {type_name} at {self.pos}')")
+    lines.append(
+        "            # If recovery is enabled, we might want to record this error but not raise immediately"
+    )
+    lines.append("            # if we are in a context where we can recover.")
+    lines.append(
+        "            # However, for now, we raise ParseError and let the rule handler catch it."
+    )
+    lines.append(
+        "            raise ParseError(f'Expected {type_name} at {self.pos}', position=self.pos, expected=[type_name])"
+    )
     lines.append("        return token")
+    lines.append("")
+    lines.append("    def skip_to_sync(self, rule_name, start_pos):")
+    lines.append('        """Skip tokens until finding a synchronization point."""')
+    lines.append("        if not self.enable_recovery:")
+    lines.append("            return")
+    lines.append("        ")
+    lines.append("        sync_set = self.sync_tokens.get(rule_name, set())")
+    lines.append("        if not sync_set:")
+    lines.append("            return")
+    lines.append("        ")
+    lines.append("        while self.pos < len(self.tokens):")
+    lines.append("            token = self.current()")
+    lines.append("            if token and token.type in sync_set:")
+    lines.append("                break")
+    lines.append("            self.pos += 1")
+    lines.append("")
+    lines.append("    def add_error(self, error_msg, position=None, expected=None):")
+    lines.append('        """Record an error for later reporting."""')
+    lines.append("        if position is None:")
+    lines.append("            position = self.pos")
+    lines.append("        self.errors.append({")
+    lines.append("            'message': error_msg,")
+    lines.append("            'position': position,")
+    lines.append("            'expected': expected or [],")
+    lines.append("        })")
+    lines.append("")
+    lines.append("    def get_errors(self):")
+    lines.append('        """Get all recorded errors."""')
+    lines.append("        return self.errors.copy()")
     lines.append("")
 
     for rule in grammar.rules:
@@ -102,6 +161,10 @@ def generate_parser(grammar: "Grammar", literal_map: Dict[str, str]) -> str:
 
                 if is_rule:
                     lines.append(f"            {target} = self.parse_{obj}()")
+                    # Check if the result is an ErrorNode and propagate if necessary
+                    # For now, we treat ErrorNode as a valid result so the parent can continue
+                    # But if the parent expects a specific structure, it might fail later.
+                    # In a robust system, we might want to check isinstance(target, ErrorNode)
                 elif obj.startswith("'"):
                     # Literal handling
                     # We use the literal string as the token type
@@ -145,13 +208,31 @@ def generate_parser(grammar: "Grammar", literal_map: Dict[str, str]) -> str:
             lines.append(f"            self.memo[key] = (res, self.pos)")
             lines.append(f"            return res")
 
-            lines.append(f"        except ParseError:")
+            lines.append(f"        except ParseError as e:")
             lines.append(f"            pass")
 
-        # Failure handling for memoization
+        # Failure handling for memoization with recovery support
+        lines.append(f"        # All alternatives failed for {rule.name}")
         lines.append(
-            f"        error = ParseError('No alternative matched for {rule.name}')"
+            f"        error = ParseError('No alternative matched for {rule.name}', position=start_pos)"
         )
+        lines.append(f"        ")
+        lines.append(f"        if self.enable_recovery:")
+        lines.append(f"            self.add_error(error.message, position=start_pos)")
+        lines.append(f"            self.skip_to_sync('{rule.name}', start_pos)")
+        lines.append(f"            # Return ErrorNode for recovery mode")
+        lines.append(f"            error_node = ErrorNode(")
+        lines.append(
+            f"                error_message='No alternative matched for {rule.name}',"
+        )
+        lines.append(
+            f"                tokens_consumed=self.tokens[start_pos:self.pos],"
+        )
+        lines.append(f"                position=start_pos")
+        lines.append(f"            )")
+        lines.append(f"            self.memo[key] = (error_node, self.pos)")
+        lines.append(f"            return error_node")
+        lines.append(f"        ")
         lines.append(f"        self.memo[key] = (error, start_pos)")
         lines.append(f"        raise error")
         lines.append("")

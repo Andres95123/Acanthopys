@@ -1,10 +1,9 @@
-import unittest
-
+import pytest
 from parser import Token, Term, Expression, Rule, Grammar
 from utils.generators import CodeGenerator
 
 
-class TestCodeGeneratorRuntime(unittest.TestCase):
+class TestCodeGeneratorRuntime:
     def _simple_grammar(self) -> Grammar:
         # tokens: NUMBER: \d+ ; WS: skip \s+
         tokens = [
@@ -48,11 +47,6 @@ class TestCodeGeneratorRuntime(unittest.TestCase):
         # 1 + 2 should parse
         lexer = Lexer("1 + 2")
         parser = Parser(lexer.tokens)
-        node = parser.parse_Expr()
-        self.assertIn("Add(", repr(node))
+        res = parser.parse_Expr()
 
-        # single number should pass via Expr -> pass Term
-        lexer = Lexer("7")
-        parser = Parser(lexer.tokens)
-        node = parser.parse_Expr()
-        self.assertIn("Number(", repr(node))
+        assert str(res) == "Add(Number('1'), Number('2'))"

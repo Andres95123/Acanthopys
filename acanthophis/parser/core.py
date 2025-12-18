@@ -83,8 +83,10 @@ class Parser:
                     rule_body
                 ):
                     terms: list[Term] = []
-                    for var_name, term_name in TERM_PATTERN.findall(expresion_line):
-                        terms.append(Term(term_name, var_name))
+                    for var_name, term_name, quantifier in TERM_PATTERN.findall(
+                        expresion_line
+                    ):
+                        terms.append(Term(term_name, var_name, quantifier or None))
                     expressions.append(Expression(terms, return_object.strip()))
                 rules.append(Rule(expressions, rule_name, is_start, line))
 

@@ -1,0 +1,114 @@
+grammar AdvancedCalc:
+    tokens:
+    # Keywords
+        LET: let
+        PRINT: print
+        FUNC: func
+        RETURN: return
+        IF: if
+        ELSE: else
+
+    # Symbols
+        SEMI: ;
+        COMMA: ,
+        EQEQ: ==
+        EQ: =
+        NEQ: !=
+        LT: <
+        GT: >
+        PLUS: \+
+        MINUS: \-
+        MUL: \*
+        DIV: \/
+        LPAREN: \(
+        RPAREN: \)
+        LBRACE: \{
+        RBRACE: \}
+
+    # Literals
+        NUMBER: \d+(\.\d+)?
+        ID: [a-zA-Z_]\w*
+
+    # Skip whitespace
+        WS: skip \s+
+    end
+
+
+    start rule Program:
+        | stmts:Statement+ -> Program(stmts)
+        | expr:Expression -> Program([ExprStmt(expr)])
+    end
+
+
+    rule Statement:
+        | LET name:ID EQ val:Expression SEMI -> Assign(name, val)
+        | PRINT LPAREN val:Expression RPAREN SEMI -> Print(val)
+        | IF cond:Expression LBRACE then_block:Statement+ RBRACE else_block:ElseClause? -> IfStmt(cond, then_block, else_block)
+        | val:Expression SEMI -> ExprStmt(val)
+    end
+
+
+    rule ElseClause:
+        | ELSE LBRACE stmts:Statement+ RBRACE -> Else(stmts)
+    end
+
+# Left recursive expression rules
+# This is the key test for the new Left Recursion support
+
+    rule Expression:
+        | left:Expression EQEQ right:Additive -> Eq(left, right)
+        | left:Expression NEQ right:Additive -> Neq(left, right)
+        | left:Expression LT right:Additive -> Lt(left, right)
+        | left:Expression GT right:Additive -> Gt(left, right)
+        | val:Additive -> pass
+    end
+
+
+    rule Additive:
+        | left:Additive PLUS right:Multiplicative -> Add(left, right)
+        | left:Additive MINUS right:Multiplicative -> Sub(left, right)
+        | val:Multiplicative -> pass
+    end
+
+
+    rule Multiplicative:
+        | left:Multiplicative MUL right:Primary -> Mul(left, right)
+        | left:Multiplicative DIV right:Primary -> Div(left, right)
+        | val:Primary -> pass
+    end
+
+
+    rule Primary:
+        | LPAREN val:Expression RPAREN -> pass
+        | name:ID LPAREN args:ArgList? RPAREN -> Call(name, args)
+        | n:NUMBER -> Num(float(n))
+        | i:ID -> Var(i)
+    end
+
+
+    rule ArgList:
+        | first:Expression rest:ArgRest* -> Args(first, rest)
+    end
+
+
+    rule ArgRest:
+        | COMMA val:Expression -> val
+    end
+
+
+    test ExprTests Expression:
+        "1 + 2 * 3" => Yields(Add(Num(1.0), Mul(Num(2.0), Num(3.0))))
+        "(1 + 2) * 3" => Yields(Mul(Add(Num(1.0), Num(2.0)), Num(3.0)))
+        "1 - 2 - 3" => Yields(Sub(Sub(Num(1.0), Num(2.0)), Num(3.0)))
+        "10 / 2 / 5" => Yields(Div(Div(Num(10.0), Num(2.0)), Num(5.0)))
+
+    # Comparisons
+        "1 + 1 == 2" => Yields(Eq(Add(Num(1.0), Num(1.0)), Num(2.0)))
+    end
+
+
+    test StmtTests Statement:
+        "let x = 10;" => Yields(Assign('x', Num(10.0)))
+        "print(x + 1);" => Yields(Print(Add(Var('x'), Num(1.0))))
+    end
+end

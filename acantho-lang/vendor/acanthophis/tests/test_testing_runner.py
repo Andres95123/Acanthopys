@@ -1,15 +1,10 @@
-import unittest
-
+import pytest
 from testing.runner import match_with_wildcard
 
 
-class TestRunnerUtils(unittest.TestCase):
+class TestRunnerUtils:
     def test_match_with_wildcard(self):
-        self.assertTrue(match_with_wildcard("Node(1, 2)", "Node(...)"))
-        self.assertTrue(match_with_wildcard("Add(Number(1), Number(2))", "Add(...)"))
-        self.assertFalse(match_with_wildcard("Node(1)", "Other(...)"))
-        self.assertTrue(match_with_wildcard("Literal('(')", "Literal('(')"))
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert match_with_wildcard("Node(1, 2)", "Node(...)")
+        assert match_with_wildcard("Add(Number(1), Number(2))", "Add(...)")
+        assert not match_with_wildcard("Node(1)", "Other(...)")
+        assert match_with_wildcard("Literal('(')", "Literal('(')")

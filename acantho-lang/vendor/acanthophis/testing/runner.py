@@ -63,15 +63,22 @@ def run_tests_in_memory(
     start_rules = [r for r in grammar.rules if getattr(r, "is_start", False)]
     if len(start_rules) == 1:
         default_start_rule = start_rules[0].name
-    elif len(start_rules) == 0 and grammar.rules:
-        default_start_rule = grammar.rules[0].name
-        logger.warn(
-            f"No start rule defined for grammar '{grammar.name}'. Using first rule '{default_start_rule}' as default."
-        )
-        logger.warn("Recommendation: Mark your entry rule with 'start rule RuleName:'")
+    elif len(start_rules) == 0:
+        if grammar.rules:
+            default_start_rule = grammar.rules[0].name
+            logger.warn(
+                f"No start rule defined for grammar '{grammar.name}'. Using first rule '{default_start_rule}' as default."
+            )
+            logger.warn(
+                "Recommendation: Mark your entry rule with 'start rule RuleName:'"
+            )
+        else:
+            logger.error(f"No rules defined in grammar '{grammar.name}'.")
+            return False
     else:
-        logger.error(f"Multiple start rules defined for grammar '{grammar.name}'.")
-        return False
+        logger.info(
+            f"Multiple start rules defined for grammar '{grammar.name}'. Suites must specify target rule."
+        )
 
     for suite in grammar.tests:
         print(f"\n  Test Suite: {suite.name}")

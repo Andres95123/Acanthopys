@@ -23,7 +23,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--tests",
         action="store_true",
-        help="Run only tests without generating parser file",
+        help="Run ONLY the integrated tests and exit. Does not generate output files.",
     )
     parser.add_argument(
         "--no-color", action="store_true", help="Disable ANSI colors in logs"
@@ -34,7 +34,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Perform a trial run with no changes made",
+        help="Simulate the full generation process (including tests) but do NOT write output files.",
+    )
+    parser.add_argument(
+        "--no-recovery",
+        action="store_true",
+        help="Disable error recovery mode (Panic Mode). By default, parsers are generated with recovery enabled.",
     )
     parser.add_argument(
         "--version", action="version", version=f"Acanthopys v{__version__}"
@@ -51,6 +56,7 @@ def run_cli(args: argparse.Namespace) -> int:
     no_tests = args.no_tests
     only_tests = args.tests
     dry_run = args.dry_run
+    enable_recovery = not args.no_recovery
 
     if not os.path.exists(input_path):
         logger.error(f"Input file not found: {input_path}")
@@ -78,9 +84,11 @@ def run_cli(args: argparse.Namespace) -> int:
 
         for grammar in grammars:
             logger.info(f"Generating parser for grammar: {grammar.name}")
+            if enable_recovery:
+                logger.info("  - Recovery Mode: ENABLED")
 
             with logger.timer(f"Code generation for {grammar.name}"):
-                generator = CodeGenerator(grammar)
+                generator = CodeGenerator(grammar, enable_recovery=enable_recovery)
                 code = generator.generate()
 
             if grammar.tests:

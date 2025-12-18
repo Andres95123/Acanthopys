@@ -1,10 +1,9 @@
 import os
-import unittest
-
+import pytest
 from utils.logging import Logger
 
 
-class TestLogger(unittest.TestCase):
+class TestLogger:
     def test_no_color_env_disables_color(self):
         os.environ["ACANTHOPHIS_NO_COLOR"] = "1"
         try:
@@ -17,7 +16,3 @@ class TestLogger(unittest.TestCase):
             logger.success("success message")
         finally:
             del os.environ["ACANTHOPHIS_NO_COLOR"]
-
-
-if __name__ == "__main__":
-    unittest.main()

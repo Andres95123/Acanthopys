@@ -46,7 +46,9 @@ class VenomLinter:
             return
 
         if not grammars:
-            self.add_diagnostic(1, "No grammar found", "Error")
+            self.add_diagnostic(
+                1, "No grammar found", "Error", code="missing-grammar-name"
+            )
             return
 
         grammar = grammars[0]
