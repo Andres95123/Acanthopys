@@ -77,6 +77,7 @@ TERM_PATTERN = re.compile(
         |               
         '[^']*'         
     )
+    ([+*?])?
     """,
     re.VERBOSE,
 )
