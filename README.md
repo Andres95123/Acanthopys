@@ -1,4 +1,4 @@
-*# Acanthopys: PEG Parser Generator
+# Acanthopys: PEG Parser Generator
 
 Acanthopys is a professional tool for generating Packrat (PEG) parsers in Python. Designed to be simple, elegant, and powerful, it allows defining complex grammars, testing them integrally, and generating optimized Python code ready to use.
 
@@ -210,4 +210,3 @@ end
 ## VS Code Support
 
 To get syntax highlighting for .apy files, copy the `acantho-lang` folder to your VS Code extensions directory (`~/.vscode/extensions/`).
-*
