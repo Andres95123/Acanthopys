@@ -6,17 +6,16 @@ import glob
 import subprocess
 import time
 import argparse
-
-# Add project root to path
-# Go up two levels: demo -> acanthophis -> root
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-
-from acanthophis.parser import Parser as GrammarParser
+import re
 
 # Constants
-DEMO_DIR = os.path.dirname(os.path.abspath(__file__))
-GRAMMARS_DIR = os.path.join(DEMO_DIR, "grammars")
-GENERATED_DIR = os.path.join(DEMO_DIR, "generated")
+if getattr(sys, "frozen", False):
+    REPL_DIR = os.path.dirname(sys.executable)
+else:
+    REPL_DIR = os.path.dirname(os.path.abspath(__file__))
+
+GRAMMARS_DIR = os.path.join(REPL_DIR, "grammars")
+GENERATED_DIR = os.path.join(REPL_DIR, "generated")
 
 # Ensure generated dir exists
 os.makedirs(GENERATED_DIR, exist_ok=True)
@@ -34,6 +33,24 @@ class REPL:
         self.show_tokens = False
         self.enable_recovery = True
 
+        # Find acanthophis executable
+        # Check if acanthophis.exe is in the same directory or bin/
+        self.acanthophis_exe = "acanthophis"  # Default to PATH
+
+        possible_paths = [
+            os.path.join(REPL_DIR, "acanthophis.exe"),
+            os.path.join(REPL_DIR, "bin", "acanthophis.exe"),
+            os.path.join(REPL_DIR, "..", "dist", "acanthophis.exe"),  # Dev path
+            os.path.join(
+                REPL_DIR, "..", "acantho-lang", "bin", "acanthophis.exe"
+            ),  # Dev path
+        ]
+
+        for p in possible_paths:
+            if os.path.exists(p):
+                self.acanthophis_exe = p
+                break
+
     def list_grammars(self):
         files = glob.glob(os.path.join(GRAMMARS_DIR, "*.apy"))
         return [os.path.basename(f) for f in files]
@@ -41,7 +58,7 @@ class REPL:
     def select_grammar(self):
         grammars = self.list_grammars()
         if not grammars:
-            print("\033[91mNo grammars found in demo/grammars/\033[0m")
+            print(f"\033[91mNo grammars found in {GRAMMARS_DIR}\033[0m")
             sys.exit(1)
 
         print("\n\033[1mAvailable Grammars:\033[0m")
@@ -68,10 +85,9 @@ class REPL:
     def compile_grammar(self):
         print(f"\033[90mCompiling {os.path.basename(self.grammar_file)}...\033[0m")
 
-        # Use subprocess to run the CLI to ensure clean state and proper file generation
         cmd = [
-            sys.executable,
-            os.path.join(DEMO_DIR, "..", "main.py"),
+            self.acanthophis_exe,
+            "generate",
             self.grammar_file,
             "-o",
             GENERATED_DIR,
@@ -83,9 +99,15 @@ class REPL:
         env = os.environ.copy()
         env["PYTHONIOENCODING"] = "utf-8"
 
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, encoding="utf-8", env=env
-        )
+        try:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, encoding="utf-8", env=env
+            )
+        except FileNotFoundError:
+            print(
+                f"\033[91mError: Could not find acanthophis executable at '{self.acanthophis_exe}'. Make sure it is in PATH or in the same directory.\033[0m"
+            )
+            return False
 
         if result.returncode != 0:
             print("\033[91mCompilation Failed:\033[0m")
@@ -93,22 +115,19 @@ class REPL:
             print("STDERR:", result.stderr)
             return False
 
-        # Extract grammar name from file content to know the generated file name
-        # Or parse the output? The CLI outputs "Generating parser for grammar: NAME"
-        # But simpler is to parse the grammar file quickly here to get the name.
+        # Extract grammar name from file content
         try:
             with open(self.grammar_file, "r", encoding="utf-8") as f:
                 content = f.read()
 
-            # Quick regex or use the actual parser
-            gp = GrammarParser()
-            grammars = gp.parse(content)
-            if not grammars:
-                print("\033[91mNo grammar found in file.\033[0m")
+            # Regex to find grammar name: grammar Name:
+            match = re.search(r"^\s*grammar\s+(\w+)\s*:", content, re.MULTILINE)
+            if match:
+                self.grammar_name = match.group(1)
+                return True
+            else:
+                print("\033[91mCould not find grammar name in file.\033[0m")
                 return False
-
-            self.grammar_name = grammars[0].name
-            return True
         except Exception as e:
             print(f"\033[91mError parsing grammar definition: {e}\033[0m")
             return False
@@ -179,15 +198,7 @@ class REPL:
             )
 
             # Find start rule
-            # Heuristic: try 'parse_start_rule_name' if we knew it,
-            # but we can inspect the class methods.
-            # Or just try common names or the first parse_ method found.
-
             method_name = None
-            # Try to find the start rule from the grammar definition if we parsed it earlier
-            # But we don't have the grammar object handy here easily without re-parsing.
-            # Let's inspect the parser class.
-
             methods = [
                 func
                 for func in dir(parser)
@@ -238,8 +249,8 @@ class REPL:
             f"\033[90mRunning integrated tests for {os.path.basename(self.grammar_file)}...\033[0m"
         )
         cmd = [
-            sys.executable,
-            os.path.join(DEMO_DIR, "..", "main.py"),
+            self.acanthophis_exe,
+            "generate",
             self.grammar_file,
             "--tests",
         ]
@@ -260,6 +271,7 @@ class REPL:
 
     def start(self):
         print(f"\033[1mAcanthophis REPL v2.0\033[0m")
+        print(f"Using compiler: {self.acanthophis_exe}")
 
         # Initial selection
         if len(sys.argv) > 1 and os.path.exists(sys.argv[1]):

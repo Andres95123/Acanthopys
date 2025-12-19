@@ -61,15 +61,16 @@ function activate(context) {
         const filePath = editor.document.fileName;
         const workspaceFolder = vscode.workspace.getWorkspaceFolder(editor.document.uri);
         const workspacePath = workspaceFolder ? workspaceFolder.uri.fsPath : path.dirname(filePath);
-        const scriptPath = context.asAbsolutePath(path.join('show_ast.py'));
-        const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
+
+        // Use the executable
+        const executablePath = context.asAbsolutePath(path.join('bin', 'acanthophis.exe'));
         const cp = require('child_process');
 
         const outputChannel = vscode.window.createOutputChannel("Acantho AST");
         outputChannel.show(true);
         outputChannel.appendLine(`Generating AST for ${filePath}...`);
 
-        cp.exec(`${pythonCommand} "${scriptPath}" "${filePath}" "${workspacePath}"`, (err, stdout, stderr) => {
+        cp.exec(`"${executablePath}" ast "${filePath}"`, (err, stdout, stderr) => {
             if (err) {
                 outputChannel.appendLine(`Error: ${err.message}`);
                 if (stderr) outputChannel.appendLine(`Stderr: ${stderr}`);

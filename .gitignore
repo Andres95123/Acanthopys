@@ -6,6 +6,9 @@ __pycache__/
 # C extensions
 *.so
 
+# Exe files
+*.exe
+
 # Distribution / packaging
 .Python
 build/
@@ -17,6 +20,9 @@ eggs/
 .installed.cfg
 pip-wheel-metadata/
 wheels/
+
+dist-repl/
+build_repl/
 
 # Virtual environments
 .env

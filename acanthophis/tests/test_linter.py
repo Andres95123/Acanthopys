@@ -1,10 +1,6 @@
 import sys
 import os
 import pytest
-
-# Add parent directory to path to allow imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from linter.venom_linter import VenomLinter
 
 

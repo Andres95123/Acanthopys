@@ -1,0 +1,47 @@
+grammar CheckedCalculator:
+    tokens:
+        NUMBER: \d+
+        PLUS: \+
+        MINUS: -
+        MUL: \*
+        DIV: /
+        LPAREN: \(
+        RPAREN: \)
+        SKIP: skip \s+
+    end
+
+
+    start rule expr:
+        | left:term PLUS right:expr -> Add(left, right)
+        | left:term MINUS right:expr -> Sub(left, right)
+        | t:term -> pass
+    end
+
+
+    rule term:
+        | left:factor MUL right:term -> Mul(left, right)
+        | left:factor DIV right:term -> Div(left, right)
+        check int(right) != 0 then -> pass
+        print(f"Valid division: {left}/{right}") -> pass
+        else then -> pass
+        print("Error: Division by zero"); res = ErrorNode("Division by zero") -> pass
+        | f:factor -> pass
+    end
+
+
+    rule factor:
+        | LPAREN e:expr RPAREN -> pass
+        | n:NUMBER -> int(n)
+        check int(n) >= 0 then -> pass
+        print(f"Positive: {n}") -> pass
+        else then -> pass
+        print(f"Negative (unexpected in this grammar): {n}") -> pass
+    end
+
+
+    test expr:
+        "10 / 2" => Yields(Div(10, 2))
+        "10 / 0" => Yields(ErrorNode(message='Division by zero', ...))
+        "5 + 3" => Yields(Add(5, 3))
+    end
+end

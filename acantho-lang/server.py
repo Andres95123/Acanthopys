@@ -5,8 +5,8 @@ import logging
 import re
 import urllib.parse
 import urllib.request
-from linter.venom_linter import VenomLinter
-from formatter.constrictor_formatter import ConstrictorFormatter
+import subprocess
+import tempfile
 
 # Configure logging to stderr so it shows up in VS Code Output channel
 logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
@@ -16,6 +16,13 @@ class AcanthoLanguageServer:
     def __init__(self):
         self.running = True
         self.documents = {}  # Map uri -> content
+
+        # Locate acanthophis executable
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.executable = os.path.join(base_dir, "bin", "acanthophis.exe")
+        if not os.path.exists(self.executable):
+            # Fallback for development/testing if not in bin
+            self.executable = "acanthophis"
 
     def run(self):
         logging.info("Acantho Language Server started")
@@ -115,35 +122,61 @@ class AcanthoLanguageServer:
 
         logging.info(f"Validating {file_path}")
 
-        linter = VenomLinter(file_path, content=content)
-        diagnostics = linter.lint()
+        # Create temp file with content
+        with tempfile.NamedTemporaryFile(
+            mode="w", delete=False, suffix=".apy", encoding="utf-8"
+        ) as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
 
-        lsp_diagnostics = []
-        for diag in diagnostics:
-            severity = 1  # Error
-            if diag["severity"] == "Warning":
-                severity = 2
-            elif diag["severity"] == "Information":
-                severity = 3
+        try:
+            # Run linter
+            result = subprocess.run(
+                [self.executable, "lint", tmp_path, "--json"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+            )
 
-            d = {
-                "range": {
-                    "start": {"line": diag["line"] - 1, "character": 0},
-                    "end": {"line": diag["line"] - 1, "character": 1000},
-                },
-                "severity": severity,
-                "message": diag["message"],
-                "source": "Venom",
-            }
-            if "code" in diag:
-                d["code"] = diag["code"]
+            if result.returncode != 0 and not result.stdout:
+                logging.error(f"Linter failed: {result.stderr}")
+                return
 
-            lsp_diagnostics.append(d)
+            try:
+                diagnostics = json.loads(result.stdout)
+            except json.JSONDecodeError:
+                logging.error(f"Failed to parse linter output: {result.stdout}")
+                return
 
-        self.send_notification(
-            "textDocument/publishDiagnostics",
-            {"uri": uri, "diagnostics": lsp_diagnostics},
-        )
+            lsp_diagnostics = []
+            for diag in diagnostics:
+                severity = 1  # Error
+                if diag["severity"] == "Warning":
+                    severity = 2
+                elif diag["severity"] == "Information":
+                    severity = 3
+
+                d = {
+                    "range": {
+                        "start": {"line": diag["line"] - 1, "character": 0},
+                        "end": {"line": diag["line"] - 1, "character": 1000},
+                    },
+                    "severity": severity,
+                    "message": diag["message"],
+                    "source": "Venom",
+                }
+                if "code" in diag:
+                    d["code"] = diag["code"]
+
+                lsp_diagnostics.append(d)
+
+            self.send_notification(
+                "textDocument/publishDiagnostics",
+                {"uri": uri, "diagnostics": lsp_diagnostics},
+            )
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
 
     def format_document(self, msg_id, params):
         uri = params["textDocument"]["uri"]
@@ -158,9 +191,28 @@ class AcanthoLanguageServer:
                 self.send_error(msg_id, -32603, str(e))
                 return
 
+        # Create temp file with content
+        with tempfile.NamedTemporaryFile(
+            mode="w", delete=False, suffix=".apy", encoding="utf-8"
+        ) as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+
         try:
-            formatter = ConstrictorFormatter(content)
-            formatted = formatter.format()
+            # Run formatter
+            result = subprocess.run(
+                [self.executable, "format", tmp_path],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+            )
+
+            if result.returncode != 0:
+                logging.error(f"Formatter failed: {result.stderr}")
+                self.send_error(msg_id, -32603, f"Formatter failed: {result.stderr}")
+                return
+
+            formatted = result.stdout
 
             lines = content.split("\n")
             end_line = len(lines)
@@ -179,6 +231,9 @@ class AcanthoLanguageServer:
         except Exception as e:
             logging.error(f"Formatting error: {e}")
             self.send_error(msg_id, -32603, str(e))
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
 
     def calculate_rename_edits(self, uri, old_name, new_name):
         content = self.documents.get(uri, "")

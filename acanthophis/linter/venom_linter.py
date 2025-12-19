@@ -2,7 +2,7 @@ import re
 import sys
 import json
 import os
-from ..parser import Parser
+from parser import Parser
 
 
 class VenomLinter:
@@ -503,6 +503,7 @@ class VenomLinter:
             return self.diagnostics
 
         self._parse_structure()
+        # print(f"DEBUG: Diagnostics after parse: {self.diagnostics}")
         self.check_undefined_rules()
         self.check_unreachable_rules()
         self.check_left_recursion()

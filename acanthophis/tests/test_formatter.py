@@ -1,10 +1,6 @@
 import pytest
 import sys
 import os
-
-# Add parent directory to path to allow imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from formatter.constrictor_formatter import ConstrictorFormatter
 
 
