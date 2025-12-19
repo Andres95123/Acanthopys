@@ -124,17 +124,21 @@ class Parser:
             defined_tokens = {t.name for t in tokens}
             defined_rules = {r.name for r in rules}
 
-            for rule in rules:
-                for expr in rule.expressions:
-                    for term in expr.terms:
-                        obj = term.object_related
-                        if obj.startswith("'") and obj.endswith("'"):
-                            continue
+            # Note: Undefined reference checking is now done in the linter
+            # to provide better error messages with correct line numbers.
+            # The parser focuses on syntax, the linter on semantics.
 
-                        if obj not in defined_rules and obj not in defined_tokens:
-                            raise Exception(
-                                f"Grammar '{grammar_name}': Undefined token or rule '{obj}' used in rule '{rule.name}'."
-                            )
+            # for rule in rules:
+            #     for expr in rule.expressions:
+            #         for term in expr.terms:
+            #             obj = term.object_related
+            #             if obj.startswith("'") and obj.endswith("'"):
+            #                 continue
+            #
+            #             if obj not in defined_rules and obj not in defined_tokens:
+            #                 raise Exception(
+            #                     f"Grammar '{grammar_name}': Undefined token or rule '{obj}' used in rule '{rule.name}'."
+            #                 )
 
             if start_rules_count == 0 and rules:
                 pass

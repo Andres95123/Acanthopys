@@ -17,7 +17,9 @@ def generate_ast_nodes(grammar: "Grammar") -> str:
                 continue
             # Check if it's a call like NumberNode(float(value))
             if "(" in ret:
-                name = ret.split("(")[0]
+                name = ret.split("(")[0].strip()
+                if not name:  # It's a tuple or parenthesized expression
+                    continue
                 if name not in BUILTINS:
                     node_names.add(name)
             else:

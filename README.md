@@ -59,7 +59,17 @@ end
 Run the generator CLI:
 
 ```bash
-python acanthophis/main.py calc.apy
+# Initialize a new project
+acanthophis init Calculator
+
+# Build the parser
+acanthophis build Calculator.apy
+
+# Run tests
+acanthophis test Calculator.apy
+
+# Start REPL
+acanthophis repl Calculator.apy
 ```
 
 This will:
@@ -69,17 +79,35 @@ This will:
 
 ### Use the Parser
 
+The generated parser provides a clean, static API for easy integration.
+
 ```python
-from Calculator_parser import Parser, Lexer
+from Calculator_parser import Parser
 
-text = "10 + 20"
-lexer = Lexer(text)
-parser = Parser(lexer.tokens)
-ast = parser.parse_Expr()
+# Parse text directly using the static method
+result = Parser.parse("10 + 20")
 
-print(ast)
-# Output: Add(Num(10), Num(20))
+# The result is a ParseResult dataclass
+if result.is_valid:
+    # Access the generated AST
+    print(f"Success! AST: {result.ast}")
+    # Output: Success! AST: Add(Num(10), Num(20))
+else:
+    # Handle errors gracefully
+    print(f"Parsing failed with {len(result.errors)} errors:")
+    for error in result.errors:
+        print(f" - {error.message} at line {error.line}, col {error.column}")
+
+# You can also access the raw tokens
+print(f"Tokens: {result.tokens}")
 ```
+
+### The `ParseResult` Object
+The `Parser.parse()` method returns a `ParseResult` object with the following fields:
+*   `ast`: The generated Abstract Syntax Tree (or `None` if parsing failed completely).
+*   `errors`: A list of `ParseError` objects. If empty, parsing was successful.
+*   `tokens`: A list of `Token` objects produced by the lexer.
+*   `is_valid`: A boolean property (`True` if no errors occurred).
 
 ---
 
@@ -171,20 +199,32 @@ By default, generated parsers include error recovery. If a syntax error occurs, 
 
 ---
 
-## 🧰 Tools
+## 🧰 CLI Reference
 
-### CLI Usage
+Acanthophis provides a modern CLI with subcommands for every stage of development.
+
+### Usage
 ```bash
-python acanthophis/main.py [input_file] [options]
+python -m acanthophis [command] [options]
 ```
 
-| Option          | Description                                  |
-| --------------- | -------------------------------------------- |
-| `-o DIR`        | Output directory for generated files.        |
-| `--tests`       | Run **only** the tests (no code generation). |
-| `--no-tests`    | Skip running tests.                          |
-| `--no-recovery` | Disable error recovery generation.           |
-| `--dry-run`     | Simulate process without writing files.      |
+| Command | Description                                      | Example                         |
+| :------ | :----------------------------------------------- | :------------------------------ |
+| `init`  | Initialize a new project structure.              | `acanthophis init MyProject`    |
+| `build` | Compile grammar files into Python parsers.       | `acanthophis build grammar.apy` |
+| `check` | Validate grammar syntax without generating code. | `acanthophis check grammar.apy` |
+| `test`  | Run integrated tests defined in the grammar.     | `acanthophis test grammar.apy`  |
+| `repl`  | Start an interactive shell for your grammar.     | `acanthophis repl grammar.apy`  |
+| `fmt`   | Format grammar files (standardizes indentation). | `acanthophis fmt grammar.apy`   |
+
+### Common Options
+*   `-v, --verbose`: Enable detailed logging.
+*   `--no-color`: Disable colored output.
+*   `--version`: Show version information.
+
+### Build Options
+*   `-o, --output`: Specify output directory (default: current dir).
+*   `--no-recovery`: Disable error recovery generation.
 
 ### Interactive REPL
 A powerful REPL is included to test your grammars interactively with AST visualization and error reporting.

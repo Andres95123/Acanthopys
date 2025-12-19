@@ -1,262 +1,202 @@
 from __future__ import annotations
 
 import argparse
-import os
 import sys
-import time
-import json
+import os
 
-from parser import Parser
-from utils.logging import Logger
-from testing.runner import run_tests_in_memory
-from lang.file_texts import AUTOMATIC_GENERATED_TEXT
-from utils.generators import CodeGenerator
 from version import __version__
-from linter.venom_linter import VenomLinter
-from formatter.constrictor_formatter import ConstrictorFormatter
+from cli.console import Colors, print_banner, print_error
+from cli.commands import run_init, run_build, run_check, run_fmt, run_test
+from cli.repl import run_repl
 
 
-def serialize(obj):
-    if isinstance(obj, list):
-        return [serialize(i) for i in obj]
-    if hasattr(obj, "__dict__"):
-        return {k: serialize(v) for k, v in obj.__dict__.items()}
-    return obj
+class ColorfulHelpFormatter(argparse.RawDescriptionHelpFormatter):
+    """Custom help formatter with colors and better structure"""
+
+    def __init__(self, prog, **kwargs):
+        self.use_colors = sys.stdout.isatty() and os.name != "nt" or os.getenv("TERM")
+        super().__init__(prog, **kwargs)
+
+    def _format_usage(self, usage, actions, groups, prefix):
+        if prefix is None:
+            prefix = f"{Colors.BOLD}{Colors.CYAN}Usage:{Colors.RESET} "
+        return super()._format_usage(usage, actions, groups, prefix)
+
+    def _format_action(self, action):
+        result = super()._format_action(action)
+        if self.use_colors:
+            if action.option_strings:
+                for opt in action.option_strings:
+                    result = result.replace(opt, f"{Colors.CYAN}{opt}{Colors.RESET}")
+            if action.metavar:
+                result = result.replace(
+                    str(action.metavar),
+                    f"{Colors.GREEN}{action.metavar}{Colors.RESET}",
+                )
+        return result
+
+    def add_usage(self, usage, actions, groups, prefix=None):
+        if prefix is None:
+            prefix = f"{Colors.BOLD}{Colors.CYAN}Usage:{Colors.RESET} "
+        return super().add_usage(usage, actions, groups, prefix)
+
+    def start_section(self, heading):
+        if self.use_colors and heading:
+            heading = f"{Colors.BOLD}{Colors.CYAN}{heading}:{Colors.RESET}"
+        return super().start_section(heading)
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
+    description = f"""{Colors.BOLD}Acanthopys{Colors.RESET} - The Modern PEG Compiler-Compiler
+
+{Colors.BOLD}Description:{Colors.RESET}
+  Acanthopys is a next-generation parser generator designed to replace Bison, Yacc, and Flex.
+  It offers a unified toolchain for building, testing, and debugging grammars with ease.
+
+{Colors.BOLD}Commands:{Colors.RESET}
+  {Colors.CYAN}init{Colors.RESET}      Initialize a new grammar project
+  {Colors.CYAN}build{Colors.RESET}     Compile grammar to Python code
+  {Colors.CYAN}check{Colors.RESET}     Lint and validate grammar file
+  {Colors.CYAN}fmt{Colors.RESET}       Format grammar file
+  {Colors.CYAN}test{Colors.RESET}      Run embedded tests
+  {Colors.CYAN}repl{Colors.RESET}      Start interactive REPL
+"""
+
     parser = argparse.ArgumentParser(
-        description="Acanthopys: PEG Parser Generator & Toolchain"
+        prog="acanthophis",
+        description=description,
+        formatter_class=ColorfulHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument(
+        "-h", "--help", action="help", help="Show this help message and exit"
     )
     parser.add_argument(
         "--version", action="version", version=f"Acanthopys v{__version__}"
     )
 
-    subparsers = parser.add_subparsers(dest="command", help="Command to execute")
-
-    # Generate command
-    gen_parser = subparsers.add_parser("generate", help="Generate parser from grammar")
-    gen_parser.add_argument("input", help="Input .acantho grammar file")
-    gen_parser.add_argument("-o", "--output", help="Output directory", default=".")
-    gen_parser.add_argument(
-        "--no-tests", action="store_true", help="Disable integrated tests execution"
-    )
-    gen_parser.add_argument(
-        "--tests",
-        action="store_true",
-        help="Run ONLY the integrated tests and exit. Does not generate output files.",
-    )
-    gen_parser.add_argument(
-        "--no-color", action="store_true", help="Disable ANSI colors in logs"
-    )
-    gen_parser.add_argument(
-        "-v", "--verbose", action="store_true", help="Enable verbose debug logging"
-    )
-    gen_parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Simulate the full generation process (including tests) but do NOT write output files.",
-    )
-    gen_parser.add_argument(
-        "--no-recovery",
-        action="store_true",
-        help="Disable error recovery mode (Panic Mode). By default, parsers are generated with recovery enabled.",
+    subparsers = parser.add_subparsers(
+        dest="command", title="Commands", metavar="<command>"
     )
 
-    # Lint command
-    lint_parser = subparsers.add_parser("lint", help="Lint a grammar file")
-    lint_parser.add_argument("input", help="Input .acantho grammar file")
-    lint_parser.add_argument(
-        "--json", action="store_true", help="Output as JSON", default=True
+    # INIT
+    init_parser = subparsers.add_parser(
+        "init",
+        help="Initialize a new grammar project",
+        formatter_class=ColorfulHelpFormatter,
+    )
+    init_parser.add_argument("name", help="Name of the grammar/project")
+    init_parser.add_argument("-o", "--output", default=".", help="Output directory")
+
+    # BUILD (Generate)
+    build_parser = subparsers.add_parser(
+        "build",
+        aliases=["generate"],
+        help="Compile grammar to Python code",
+        formatter_class=ColorfulHelpFormatter,
+    )
+    build_parser.add_argument("input", metavar="FILE", help="Path to .apy file")
+    build_parser.add_argument("-o", "--output", default=".", help="Output directory")
+    build_parser.add_argument(
+        "--no-tests", action="store_true", help="Skip running tests"
+    )
+    build_parser.add_argument(
+        "--dry-run", action="store_true", help="Don't write files"
+    )
+    build_parser.add_argument(
+        "--no-recovery", action="store_true", help="Disable error recovery"
+    )
+    build_parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Verbose output"
     )
 
-    # Format command
-    fmt_parser = subparsers.add_parser("format", help="Format a grammar file")
-    fmt_parser.add_argument("input", help="Input .acantho grammar file")
+    # CHECK (Lint)
+    check_parser = subparsers.add_parser(
+        "check",
+        aliases=["lint"],
+        help="Lint and validate grammar file",
+        formatter_class=ColorfulHelpFormatter,
+    )
+    check_parser.add_argument("input", metavar="FILE", help="Path to .apy file")
+    check_parser.add_argument("--json", action="store_true", help="Output as JSON")
+
+    # FMT (Format)
+    fmt_parser = subparsers.add_parser(
+        "fmt",
+        aliases=["format"],
+        help="Format grammar file",
+        formatter_class=ColorfulHelpFormatter,
+    )
+    fmt_parser.add_argument("input", metavar="FILE", help="Path to .apy file")
     fmt_parser.add_argument(
         "--write", action="store_true", help="Write changes to file"
     )
 
-    # AST command
-    ast_parser = subparsers.add_parser("ast", help="Show AST")
-    ast_parser.add_argument("input", help="Input .acantho grammar file")
+    # TEST
+    test_parser = subparsers.add_parser(
+        "test", help="Run embedded tests", formatter_class=ColorfulHelpFormatter
+    )
+    test_parser.add_argument("input", metavar="FILE", help="Path to .apy file")
+    test_parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Verbose output"
+    )
+
+    # REPL
+    repl_parser = subparsers.add_parser(
+        "repl", help="Start interactive REPL", formatter_class=ColorfulHelpFormatter
+    )
+    repl_parser.add_argument("input", metavar="FILE", help="Path to .apy file")
+    repl_parser.add_argument("--rule", help="Start rule to use")
 
     return parser
 
 
-def run_generate(args: argparse.Namespace) -> int:
-    logger = Logger(use_color=not args.no_color, verbose=args.verbose)
-    start_time = time.perf_counter()
-
-    input_path = args.input
-    output_dir = args.output
-    no_tests = args.no_tests
-    only_tests = args.tests
-    dry_run = args.dry_run
-    enable_recovery = not args.no_recovery
-
-    if not os.path.exists(input_path):
-        logger.error(f"Input file not found: {input_path}")
-        return 1
-
-    logger.info(f"Reading grammar from {input_path}...")
-
-    try:
-        with logger.timer("Reading file"):
-            with open(input_path, "r", encoding="utf-8") as file:
-                content = file.read()
-
-        acantho_parser = Parser()
-        try:
-            with logger.timer("Parsing grammar"):
-                grammars = acantho_parser.parse(content)
-        except Exception as e:  # noqa: BLE001 - DX
-            logger.error(f"Failed to parse grammar file '{input_path}':")
-            logger.error(f"  {e}")
-            return 1
-
-        if not grammars:
-            logger.warn("No grammars found in file.")
-            return 0
-
-        for grammar in grammars:
-            logger.info(f"Generating parser for grammar: {grammar.name}")
-            if enable_recovery:
-                logger.info("  - Recovery Mode: ENABLED")
-
-            with logger.timer(f"Code generation for {grammar.name}"):
-                generator = CodeGenerator(grammar, enable_recovery=enable_recovery)
-                code = generator.generate()
-
-            if grammar.tests:
-                if no_tests:
-                    logger.warn(
-                        f"Skipping tests for {grammar.name}. It is highly recommended to run tests to ensure parser correctness."
-                    )
-                else:
-                    logger.info(f"Running integrated tests for grammar: {grammar.name}")
-
-                    # Run tests in memory
-                    success = run_tests_in_memory(grammar, code, logger)
-                    if not success:
-                        logger.error(f"Tests failed for grammar: {grammar.name}")
-                        return 1
-
-            if only_tests:
-                continue
-
-            if not dry_run:
-                output_filename = f"{grammar.name}_parser.py"
-                output_path = os.path.join(output_dir, output_filename)
-
-                # Ensure output directory exists
-                os.makedirs(output_dir, exist_ok=True)
-
-                with open(output_path, "w", encoding="utf-8") as f:
-                    f.write(code)
-                logger.info(f"Parser written to {output_path}")
-            else:
-                logger.info("Dry run: No files written.")
-
-        duration = time.perf_counter() - start_time
-        logger.info(f"Done in {duration:.4f}s.")
-        return 0
-
-    except Exception as e:
-        logger.error(f"An unexpected error occurred: {e}")
-        if args.verbose:
-            import traceback
-
-            traceback.print_exc()
-        return 1
-
-
-def run_lint(args: argparse.Namespace) -> int:
-    try:
-        linter = VenomLinter(args.input)
-        results = linter.lint()
-        if args.json:
-            print(json.dumps(results, indent=2))
-        else:
-            for diag in results:
-                print(f"{diag['file']}:{diag['line']} - {diag['message']}")
-        return 0 if not any(d["severity"] == "Error" for d in results) else 1
-    except Exception as e:
-        print(
-            json.dumps(
-                [
-                    {
-                        "line": 1,
-                        "message": str(e),
-                        "severity": "Error",
-                        "file": args.input,
-                    }
-                ]
-            )
-        )
-        return 1
-
-
-def run_format(args: argparse.Namespace) -> int:
-    try:
-        with open(args.input, "r", encoding="utf-8") as f:
-            content = f.read()
-
-        formatter = ConstrictorFormatter(content)
-        formatted_code = formatter.format()
-
-        if args.write:
-            with open(args.input, "w", encoding="utf-8") as f:
-                f.write(formatted_code)
-        else:
-            print(formatted_code)
-        return 0
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return 1
-
-
-def run_ast(args: argparse.Namespace) -> int:
-    try:
-        with open(args.input, "r", encoding="utf-8") as f:
-            content = f.read()
-
-        parser = Parser()
-        grammars = parser.parse(content)
-        print(json.dumps(serialize(grammars), indent=2))
-        return 0
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return 1
-
-
-def run_cli(args: argparse.Namespace) -> int:
-    if args.command == "generate":
-        return run_generate(args)
-    elif args.command == "lint":
-        return run_lint(args)
-    elif args.command == "format":
-        return run_format(args)
-    elif args.command == "ast":
-        return run_ast(args)
-    elif args.command is None:
-        print("Please specify a command: generate, lint, format, ast")
-        return 1
-    return 0
-
-
 def main() -> None:
-    # Force UTF-8 for stdout/stderr to avoid encoding issues with special characters
     if sys.stdout.encoding != "utf-8":
         try:
             sys.stdout.reconfigure(encoding="utf-8")
             sys.stderr.reconfigure(encoding="utf-8")
         except AttributeError:
-            # Python < 3.7 or some environments
             pass
 
     parser = build_arg_parser()
+
+    if len(sys.argv) == 1:
+        print_banner()
+        parser.print_help()
+        sys.exit(0)
+
     args = parser.parse_args()
-    code = run_cli(args)
-    if code:
-        sys.exit(code)
+
+    cmd = args.command
+
+    ret = 0
+    if cmd in ["init"]:
+        ret = run_init(args.name, args.output)
+    elif cmd in ["build", "generate"]:
+        ret = run_build(
+            args.input,
+            args.output,
+            args.no_tests,
+            args.dry_run,
+            not args.no_recovery,
+            args.verbose,
+        )
+    elif cmd in ["check", "lint"]:
+        ret = run_check(args.input, args.json)
+    elif cmd in ["fmt", "format"]:
+        ret = run_fmt(args.input, args.write)
+    elif cmd in ["test"]:
+        ret = run_test(args.input, args.verbose)
+    elif cmd in ["repl"]:
+        ret = run_repl(args.input, args.rule)
+    else:
+        parser.print_help()
+        ret = 1
+
+    sys.exit(ret)
+
+
+if __name__ == "__main__":
+    main()

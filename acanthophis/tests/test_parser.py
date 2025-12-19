@@ -97,6 +97,7 @@ class TestParser:
             self.parser.parse(code)
 
     def test_undefined_reference(self):
+        """Test that undefined references are now handled by the linter, not the parser"""
         code = textwrap.dedent(r"""
         grammar TestGrammar:
             tokens:
@@ -108,8 +109,11 @@ class TestParser:
             end
         end
         """)
-        with pytest.raises(Exception, match="Undefined token or rule 'UNDEFINED'"):
-            self.parser.parse(code)
+        # Parser no longer validates semantic rules like undefined references
+        # That's the linter's job. Parser should successfully parse the syntax.
+        result = self.parser.parse(code)
+        assert len(result) == 1  # Should successfully parse the grammar structure
+        assert result[0].name == "TestGrammar"
 
     def test_no_grammar_found(self):
         code = "# Just comments"

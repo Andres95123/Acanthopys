@@ -1,5 +1,8 @@
 def generate_common_classes() -> str:
     return """
+from dataclasses import dataclass
+from typing import Any, List, Optional
+
 @dataclass(frozen=True)
 class Token:
     type: str
@@ -28,6 +31,27 @@ class ParseError(Exception):
         self.expected = expected or []
         self.line = token.line if token else 0
         self.column = token.column if token else 0
+        
+    def __str__(self):
+        loc = f"line {self.line}, col {self.column}"
+        return f"{self.message} at {loc}"
+
+@dataclass
+class ParseResult:
+    \"\"\"Result of a parse operation containing the AST and any errors.\"\"\"
+    ast: Any
+    errors: List[ParseError]
+    tokens: List[Token]
+    
+    @property
+    def is_valid(self) -> bool:
+        return len(self.errors) == 0
+        
+    def unwrap(self):
+        \"\"\"Returns the AST if valid, otherwise raises the first error.\"\"\"
+        if self.errors:
+            raise self.errors[0]
+        return self.ast
 
 class ErrorNode:
     \"\"\"Represents an error in the parse tree for recovery mode.\"\"\"

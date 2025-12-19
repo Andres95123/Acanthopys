@@ -224,6 +224,9 @@ def generate_parser(
                 if "(" in ret:
                     # It's a python expression using the variables
                     lines.append(f"            res = {ret}")
+                elif ret in vars_collected:
+                    # It's a variable name, return it directly
+                    lines.append(f"            res = {ret}")
                 else:
                     # It's a class name, pass vars as kwargs
                     args = ", ".join(f"{v}={v}" for v in vars_collected if v != "_")
@@ -330,5 +333,40 @@ def generate_parser(
         lines.append(f"        self.memo[key] = (res, self.pos)")
         lines.append(f"        return res")
         lines.append("")
+
+    # Add static convenience method
+    start_rule_name = grammar.rules[0].name
+    for r in grammar.rules:
+        if r.is_start:
+            start_rule_name = r.name
+            break
+
+    lines.append("    @classmethod")
+    lines.append(
+        f"    def parse(cls, text, rule_name='{start_rule_name}', enable_recovery=True):"
+    )
+    lines.append('        """Convenience method to parse text directly."""')
+    lines.append("        # Lexer is expected to be in the same module scope")
+    lines.append("        lexer = Lexer(text)")
+    lines.append("        parser = cls(lexer.tokens, enable_recovery=enable_recovery)")
+    lines.append("        method_name = f'parse_{rule_name}'")
+    lines.append("        if not hasattr(parser, method_name):")
+    lines.append("            raise ValueError(f'Unknown rule: {rule_name}')")
+    lines.append("        ")
+    lines.append("        try:")
+    lines.append("            ast = getattr(parser, method_name)()")
+    lines.append("            if parser.current() is not None:")
+    lines.append("                found = parser.current()")
+    lines.append("                msg = f'Expected EOF, found {found.type}'")
+    lines.append("                parser.add_error(msg, token=found)")
+    lines.append("        except ParseError as e:")
+    lines.append("            # If the top-level rule fails and raises ParseError")
+    lines.append("            parser.errors.append(e)")
+    lines.append("            ast = None")
+    lines.append("        except Exception as e:")
+    lines.append("            # Unexpected errors")
+    lines.append("            raise e")
+    lines.append("            ")
+    lines.append("        return ParseResult(ast, parser.get_errors(), lexer.tokens)")
 
     return "\n".join(lines)
