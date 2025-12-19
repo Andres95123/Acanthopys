@@ -40,7 +40,7 @@
       "patterns": [
         {
           "name": "keyword.control.acanthophis",
-          "match": "\\b(grammar|tokens|rule|test|end|skip|pass|start)\\b"
+          "match": "\\b(grammar|tokens|rule|test|end|skip|pass|start|check|then|else)\\b"
         },
         {
           "name": "keyword.operator.arrow.acanthophis",

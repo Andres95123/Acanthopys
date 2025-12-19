@@ -111,3 +111,18 @@ TEST_CASE_START_PATTERN = re.compile(
     """,
     re.VERBOSE | re.MULTILINE,
 )
+
+CHECK_GUARD_PATTERN = re.compile(
+    r"""
+    \s+check\s+
+    (.+?)
+    \s+then\s+
+    (.+?)
+    (?:
+        \s+else\s+then\s+
+        (.+)
+    )?
+    $
+    """,
+    re.VERBOSE,
+)

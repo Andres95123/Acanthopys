@@ -1,6 +1,15 @@
 import ast
 import re
-from .models import Token, Term, Expression, Rule, TestCase, TestSuite, Grammar
+from .models import (
+    Token,
+    Term,
+    Expression,
+    Rule,
+    TestCase,
+    TestSuite,
+    Grammar,
+    CheckGuard,
+)
 from .constants import (
     GRAMMAR_PATTERN,
     TOKENS_BLOCK_PATTERN,
@@ -10,6 +19,7 @@ from .constants import (
     TERM_PATTERN,
     TEST_BLOCK_PATTERN,
     TEST_CASE_START_PATTERN,
+    CHECK_GUARD_PATTERN,
 )
 
 
@@ -79,15 +89,31 @@ class Parser:
                 line = text.count("\n", 0, rule_start_offset) + 1
 
                 expressions: list[Expression] = []
-                for expresion_line, return_object in EXPRESSION_OPTION_PATTERN.findall(
-                    rule_body
-                ):
+                for (
+                    expresion_line,
+                    return_object_raw,
+                ) in EXPRESSION_OPTION_PATTERN.findall(rule_body):
                     terms: list[Term] = []
                     for var_name, term_name, quantifier in TERM_PATTERN.findall(
                         expresion_line
                     ):
                         terms.append(Term(term_name, var_name, quantifier or None))
-                    expressions.append(Expression(terms, return_object.strip()))
+
+                    return_object = return_object_raw.strip()
+                    check_guard = None
+
+                    guard_match = CHECK_GUARD_PATTERN.search(return_object)
+                    if guard_match:
+                        condition = guard_match.group(1).strip()
+                        then_code = guard_match.group(2).strip()
+                        else_code = guard_match.group(3)
+                        if else_code:
+                            else_code = else_code.strip()
+
+                        check_guard = CheckGuard(condition, then_code, else_code)
+                        return_object = return_object[: guard_match.start()].strip()
+
+                    expressions.append(Expression(terms, return_object, check_guard))
                 rules.append(Rule(expressions, rule_name, is_start, line))
 
             if start_rules_count > 1:

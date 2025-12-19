@@ -4,6 +4,9 @@ if TYPE_CHECKING:
     from parser import Grammar
 
 
+BUILTINS = {"int", "float", "str", "bool", "list", "dict", "tuple", "set", "None"}
+
+
 def generate_ast_nodes(grammar: "Grammar") -> str:
     # Collect all node names from rules
     node_names = set()
@@ -15,9 +18,11 @@ def generate_ast_nodes(grammar: "Grammar") -> str:
             # Check if it's a call like NumberNode(float(value))
             if "(" in ret:
                 name = ret.split("(")[0]
-                node_names.add(name)
+                if name not in BUILTINS:
+                    node_names.add(name)
             else:
-                node_names.add(ret)
+                if ret not in BUILTINS:
+                    node_names.add(ret)
 
     lines = []
     for name in sorted(node_names):

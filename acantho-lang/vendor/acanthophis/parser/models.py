@@ -15,10 +15,20 @@ class Term:
         self.quantifier = quantifier
 
 
+class CheckGuard:
+    def __init__(self, condition: str, then_code: str, else_code: str = None) -> None:
+        self.condition = condition
+        self.then_code = then_code
+        self.else_code = else_code
+
+
 class Expression:
-    def __init__(self, terms: list[Term], return_object: str) -> None:
+    def __init__(
+        self, terms: list[Term], return_object: str, check_guard: CheckGuard = None
+    ) -> None:
         self.terms = terms
         self.return_object = return_object
+        self.check_guard = check_guard
 
 
 class Rule:

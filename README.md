@@ -122,7 +122,19 @@ rule Atom:
 end
 ```
 
-### 4. Integrated Tests
+### 4. Check Guards (`check ...`)
+Add semantic validation or custom logic directly in your grammar.
+*   Syntax: `check CONDITION then CODE [else then CODE]`
+*   Executes Python code after a successful match.
+*   Useful for semantic checks (e.g., "number must be positive") or side effects.
+
+```acanthophis
+rule PositiveNumber:
+    | n:NUMBER -> int(n) check int(n) > 0 then print("Valid") else then print("Invalid")
+end
+```
+
+### 5. Integrated Tests
 Write tests to ensure your grammar works as expected.
 *   `Yields(...)`: Asserts the parse result matches the structure.
 *   `Fail`: Asserts the input fails to parse.

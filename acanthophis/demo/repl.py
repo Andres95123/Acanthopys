@@ -2,135 +2,328 @@ import importlib.util
 import os
 import sys
 import traceback
+import glob
+import subprocess
+import time
+import argparse
 
-# Default to the new grammar name
-GRAMMAR_NAME = "AdvancedCalc"
-GEN_FILE = f"{GRAMMAR_NAME}_parser.py"
-GEN_PATH = os.path.join(os.path.dirname(__file__), "generated", GEN_FILE)
-MODULE_NAME = "advanced_calc_parser"
+# Add project root to path
+# Go up two levels: demo -> acanthophis -> root
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+
+from acanthophis.parser import Parser as GrammarParser
+
+# Constants
+DEMO_DIR = os.path.dirname(os.path.abspath(__file__))
+GRAMMARS_DIR = os.path.join(DEMO_DIR, "grammars")
+GENERATED_DIR = os.path.join(DEMO_DIR, "generated")
+
+# Ensure generated dir exists
+os.makedirs(GENERATED_DIR, exist_ok=True)
 
 
-def load_parser_module():
-    if not os.path.exists(GEN_PATH):
-        print(f"\033[91mError: Generated parser not found at {GEN_PATH}\033[0m")
-        print(
-            "Please run: python acanthophis/main.py demo/calculator.apy -o demo/generated"
+class REPL:
+    def __init__(self):
+        self.grammar_file = None
+        self.grammar_name = None
+        self.parser_module = None
+        self.Lexer = None
+        self.ParserClass = None
+        self.verbose = False
+        self.show_ast = True
+        self.show_tokens = False
+        self.enable_recovery = True
+
+    def list_grammars(self):
+        files = glob.glob(os.path.join(GRAMMARS_DIR, "*.apy"))
+        return [os.path.basename(f) for f in files]
+
+    def select_grammar(self):
+        grammars = self.list_grammars()
+        if not grammars:
+            print("\033[91mNo grammars found in demo/grammars/\033[0m")
+            sys.exit(1)
+
+        print("\n\033[1mAvailable Grammars:\033[0m")
+        for i, g in enumerate(grammars):
+            print(f"  \033[96m{i + 1}.\033[0m {g}")
+
+        while True:
+            try:
+                choice = input("\nSelect a grammar (number): ").strip()
+                if not choice:
+                    continue
+                idx = int(choice) - 1
+                if 0 <= idx < len(grammars):
+                    self.grammar_file = os.path.join(GRAMMARS_DIR, grammars[idx])
+                    print(f"Selected: \033[92m{grammars[idx]}\033[0m")
+                    break
+                else:
+                    print("Invalid number.")
+            except ValueError:
+                print("Please enter a number.")
+            except KeyboardInterrupt:
+                sys.exit(0)
+
+    def compile_grammar(self):
+        print(f"\033[90mCompiling {os.path.basename(self.grammar_file)}...\033[0m")
+
+        # Use subprocess to run the CLI to ensure clean state and proper file generation
+        cmd = [
+            sys.executable,
+            os.path.join(DEMO_DIR, "..", "main.py"),
+            self.grammar_file,
+            "-o",
+            GENERATED_DIR,
+        ]
+
+        if self.verbose:
+            cmd.append("-v")
+
+        env = os.environ.copy()
+        env["PYTHONIOENCODING"] = "utf-8"
+
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, encoding="utf-8", env=env
         )
-        sys.exit(1)
 
-    spec = importlib.util.spec_from_file_location(MODULE_NAME, GEN_PATH)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+        if result.returncode != 0:
+            print("\033[91mCompilation Failed:\033[0m")
+            print("STDOUT:", result.stdout)
+            print("STDERR:", result.stderr)
+            return False
 
+        # Extract grammar name from file content to know the generated file name
+        # Or parse the output? The CLI outputs "Generating parser for grammar: NAME"
+        # But simpler is to parse the grammar file quickly here to get the name.
+        try:
+            with open(self.grammar_file, "r", encoding="utf-8") as f:
+                content = f.read()
 
-try:
-    module = load_parser_module()
-    Lexer = getattr(module, "Lexer")
-    ParserClass = getattr(module, "Parser")
-except Exception as e:
-    print(f"\033[91mFailed to load parser module: {e}\033[0m")
-    sys.exit(1)
+            # Quick regex or use the actual parser
+            gp = GrammarParser()
+            grammars = gp.parse(content)
+            if not grammars:
+                print("\033[91mNo grammar found in file.\033[0m")
+                return False
 
+            self.grammar_name = grammars[0].name
+            return True
+        except Exception as e:
+            print(f"\033[91mError parsing grammar definition: {e}\033[0m")
+            return False
 
-def print_stylized_error(error, source_code):
-    if isinstance(error, dict):
-        msg = error.get("message")
-        line = error.get("line", 0)
-        col = error.get("column", 0)
-    else:
-        msg = getattr(error, "message", str(error))
-        line = getattr(error, "line", 0)
-        col = getattr(error, "column", 0)
+    def load_module(self):
+        if not self.grammar_name:
+            return False
 
-    print(f"\033[91mError:\033[0m {msg}")
-    print(f"   --> line {line}:{col}")
+        module_name = f"{self.grammar_name}_parser"
+        file_path = os.path.join(GENERATED_DIR, f"{module_name}.py")
 
-    lines = source_code.splitlines()
-    if 0 < line <= len(lines):
-        code_line = lines[line - 1]
-        print(f"{line:4} | {code_line}")
-        pointer = " " * (col) + "^"
-        print(f"     | \033[93m{pointer}\033[0m")
-    print("")
+        if not os.path.exists(file_path):
+            print(f"\033[91mGenerated file not found: {file_path}\033[0m")
+            return False
 
+        try:
+            spec = importlib.util.spec_from_file_location(module_name, file_path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
 
-def run_parser(text, recovery=True, verbose=False):
-    print(f"\n\033[94mInput:\033[0m {text}")
-    try:
-        lexer = Lexer(text)
-        parser = ParserClass(lexer.tokens, enable_recovery=recovery)
+            self.parser_module = module
+            self.Lexer = getattr(module, "Lexer")
+            self.ParserClass = getattr(module, "Parser")
+            return True
+        except Exception as e:
+            print(f"\033[91mFailed to load module: {e}\033[0m")
+            traceback.print_exc()
+            return False
 
-        # Try to parse with the start rule 'Program'
-        # The generated parser has methods like parse_Program
-        if hasattr(parser, "parse_Program"):
-            result = parser.parse_Program()
-        elif hasattr(parser, "parse_program"):
-            result = parser.parse_program()
+    def print_error(self, error, source_code):
+        if isinstance(error, dict):
+            msg = error.get("message")
+            line = error.get("line", 0)
+            col = error.get("column", 0)
         else:
-            print(
-                "\033[91mError: Could not find start rule (parse_Program) in generated parser.\033[0m"
-            )
+            msg = getattr(error, "message", str(error))
+            line = getattr(error, "line", 0)
+            col = getattr(error, "column", 0)
+
+        print(f"\033[91mError:\033[0m {msg}")
+        print(f"   --> line {line}:{col}")
+
+        lines = source_code.splitlines()
+        if 0 < line <= len(lines):
+            code_line = lines[line - 1]
+            print(f"{line:4} | {code_line}")
+            pointer = " " * (col) + "^"
+            print(f"     | \033[93m{pointer}\033[0m")
+
+    def run_input(self, text):
+        if not self.Lexer or not self.ParserClass:
+            print("Parser not loaded.")
             return
 
-        if recovery and hasattr(parser, "errors") and parser.errors:
-            print(f"\n\033[93mRecovered {len(parser.errors)} Errors:\033[0m")
-            for e in parser.errors:
-                print_stylized_error(e, text)
-            print("\033[90mPartial AST:\033[0m", result)
+        if self.show_tokens:
+            print("\033[90mTokens:\033[0m")
+            try:
+                l = self.Lexer(text)
+                for t in l.tokens:
+                    print(f"  {t}")
+            except Exception as e:
+                print(f"  Tokenization Error: {e}")
+
+        try:
+            lexer = self.Lexer(text)
+            parser = self.ParserClass(
+                lexer.tokens, enable_recovery=self.enable_recovery
+            )
+
+            # Find start rule
+            # Heuristic: try 'parse_start_rule_name' if we knew it,
+            # but we can inspect the class methods.
+            # Or just try common names or the first parse_ method found.
+
+            method_name = None
+            # Try to find the start rule from the grammar definition if we parsed it earlier
+            # But we don't have the grammar object handy here easily without re-parsing.
+            # Let's inspect the parser class.
+
+            methods = [
+                func
+                for func in dir(parser)
+                if callable(getattr(parser, func)) and func.startswith("parse_")
+            ]
+            # Filter out internal methods like _parse_...
+            methods = [m for m in methods if not m.startswith("parse__")]
+
+            if not methods:
+                print("\033[91mNo parse methods found in generated parser.\033[0m")
+                return
+
+            # Prefer 'parse_program', 'parse_start', 'parse_expr' or the first one
+            preferred = ["parse_program", "parse_Program", "parse_start", "parse_expr"]
+            for p in preferred:
+                if p in methods:
+                    method_name = p
+                    break
+
+            if not method_name:
+                method_name = methods[0]  # Default to first found
+
+            if self.verbose:
+                print(f"\033[90mUsing start rule: {method_name}\033[0m")
+
+            parse_method = getattr(parser, method_name)
+            result = parse_method()
+
+            if self.enable_recovery and hasattr(parser, "errors") and parser.errors:
+                print(f"\n\033[93mRecovered {len(parser.errors)} Errors:\033[0m")
+                for e in parser.errors:
+                    self.print_error(e, text)
+                if self.show_ast:
+                    print("\033[90mPartial AST:\033[0m", result)
+            else:
+                print("\033[92mSuccess!\033[0m")
+                if self.show_ast:
+                    print("AST:", result)
+
+        except Exception as e:
+            print("\033[91mParse Error (Immediate Failure):\033[0m")
+            self.print_error(e, text)
+            if self.verbose:
+                traceback.print_exc()
+
+    def run_tests(self):
+        print(
+            f"\033[90mRunning integrated tests for {os.path.basename(self.grammar_file)}...\033[0m"
+        )
+        cmd = [
+            sys.executable,
+            os.path.join(DEMO_DIR, "..", "main.py"),
+            self.grammar_file,
+            "--tests",
+        ]
+        subprocess.run(cmd)
+
+    def print_help(self):
+        print("\n\033[1mCommands:\033[0m")
+        print("  \033[96m:reload\033[0m   Recompile and reload the current grammar")
+        print("  \033[96m:change\033[0m   Select a different grammar")
+        print("  \033[96m:test\033[0m     Run integrated tests defined in the grammar")
+        print("  \033[96m:debug\033[0m    Toggle verbose debug mode")
+        print("  \033[96m:ast\033[0m      Toggle AST printing")
+        print("  \033[96m:tokens\033[0m   Toggle token printing")
+        print("  \033[96m:rec\033[0m      Toggle error recovery")
+        print("  \033[96m:cls\033[0m      Clear screen")
+        print("  \033[96m:help\033[0m     Show this help")
+        print("  \033[96mexit\033[0m      Quit REPL")
+
+    def start(self):
+        print(f"\033[1mAcanthophis REPL v2.0\033[0m")
+
+        # Initial selection
+        if len(sys.argv) > 1 and os.path.exists(sys.argv[1]):
+            self.grammar_file = sys.argv[1]
         else:
-            print("\033[92mSuccess!\033[0m")
-            print("AST:", result)
+            self.select_grammar()
 
-    except Exception as e:
-        print("\033[91mParse Error (Immediate Failure):\033[0m")
-        print_stylized_error(e, text)
-        if verbose:
-            traceback.print_exc()
+        # Initial compile & load
+        if self.compile_grammar():
+            self.load_module()
 
+        print(
+            f"\nLoaded \033[92m{self.grammar_name}\033[0m. Type ':help' for commands."
+        )
 
-def run_examples():
-    examples = [
-        ("1. Basic Arithmetic (Precedence)", "let x = 1 + 2 * 3;"),
-        ("2. Left Associativity (Left Recursion)", "let y = 10 - 5 - 2;"),
-        ("3. Complex Expression", "print((1 + 2) * (3 + 4));"),
-        ("4. Comparisons", "if 1 + 1 == 2 { print(1); }"),
-        ("5. Error Recovery (Missing Semicolon)", "let x = 10 print(x);"),
-        ("6. Error Recovery (Unexpected Token)", "let x = 10 + * 5;"),
-    ]
+        while True:
+            try:
+                prompt = f"\033[96m{self.grammar_name}>\033[0m "
+                text = input(prompt).strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\nExiting...")
+                break
 
-    print(f"\n\033[1mRunning {len(examples)} internal test cases...\033[0m")
-    for title, code in examples:
-        print(f"\n\033[1m=== {title} ===\033[0m")
-        run_parser(code, recovery=True)
+            if not text:
+                continue
+
+            if text.startswith(":"):
+                cmd = text[1:].lower()
+                if cmd == "reload":
+                    if self.compile_grammar():
+                        self.load_module()
+                        print("Reloaded.")
+                elif cmd == "change":
+                    self.select_grammar()
+                    if self.compile_grammar():
+                        self.load_module()
+                elif cmd == "test":
+                    self.run_tests()
+                elif cmd == "debug":
+                    self.verbose = not self.verbose
+                    print(f"Verbose mode: {self.verbose}")
+                elif cmd == "ast":
+                    self.show_ast = not self.show_ast
+                    print(f"Show AST: {self.show_ast}")
+                elif cmd == "tokens":
+                    self.show_tokens = not self.show_tokens
+                    print(f"Show Tokens: {self.show_tokens}")
+                elif cmd == "rec":
+                    self.enable_recovery = not self.enable_recovery
+                    print(f"Error Recovery: {self.enable_recovery}")
+                elif cmd == "cls":
+                    os.system("cls" if os.name == "nt" else "clear")
+                elif cmd == "help":
+                    self.print_help()
+                else:
+                    print(f"Unknown command: {cmd}")
+                continue
+
+            if text.lower() in {"exit", "quit"}:
+                break
+
+            self.run_input(text)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "examples":
-        run_examples()
-        sys.exit(0)
-
-    print(f"\033[1mAcanthophis REPL ({GRAMMAR_NAME})\033[0m")
-    print("Type 'exit' to quit, 'examples' to run demo cases.")
-
-    while True:
-        try:
-            text = input("\033[96m>\033[0m ")
-        except EOFError:
-            break
-
-        if not text.strip():
-            continue
-
-        if text.strip().lower() in {"exit", "quit"}:
-            break
-
-        if text.strip().lower() == "examples":
-            run_examples()
-            continue
-
-        run_parser(text, recovery=True)
-
-        run_parser(text, recovery=False)
-        run_parser(text, recovery=True)
-        print("-" * 40)
+    repl = REPL()
+    repl.start()

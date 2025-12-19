@@ -229,6 +229,14 @@ def generate_parser(
                     args = ", ".join(f"{v}={v}" for v in vars_collected if v != "_")
                     lines.append(f"            res = {ret}({args})")
 
+            if expr.check_guard:
+                lines.append(f"            # Check Guard")
+                lines.append(f"            if {expr.check_guard.condition}:")
+                lines.append(f"                {expr.check_guard.then_code}")
+                if expr.check_guard.else_code:
+                    lines.append(f"            else:")
+                    lines.append(f"                {expr.check_guard.else_code}")
+
             # Success handling for memoization
             lines.append(f"            return res")
 
