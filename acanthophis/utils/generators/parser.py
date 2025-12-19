@@ -100,6 +100,7 @@ def generate_parser(
         for i, expr in enumerate(rule.expressions):
             lines.append(f"        # Option {i}")
             lines.append(f"        self.pos = start_pos")
+            lines.append(f"        _error_snapshot = len(self.errors)")
             lines.append(f"        try:")
 
             # Generate code for terms
@@ -240,10 +241,25 @@ def generate_parser(
                     for line in else_code.splitlines():
                         lines.append(f"                {line}")
 
+            # If we are in recovery mode, and the result is an ErrorNode,
+            # we should treat this as a failure so that the parent rule
+            # can try other alternatives (backtracking).
+            # This is crucial for rules with common prefixes where one alternative
+            # might consume tokens, fail, and recover, but another alternative
+            # is the correct one.
+            lines.append(
+                f"            if self.enable_recovery and isinstance(res, ErrorNode):"
+            )
+            lines.append(
+                f"                raise ParseError(res.error_message, token=res.token)"
+            )
+
             # Success handling for memoization
             lines.append(f"            return res")
 
             lines.append(f"        except ParseError as e:")
+            lines.append(f"            if self.enable_recovery:")
+            lines.append(f"                del self.errors[_error_snapshot:]")
             lines.append(f"            failures.append(e)")
             lines.append(f"            pass")
 
@@ -262,7 +278,27 @@ def generate_parser(
 
         lines.append(f"        error = ParseError(msg, token=found)")
         lines.append(f"        ")
-        lines.append(f"        if self.enable_recovery:")
+
+        # Only recover if:
+        # 1. This is a start rule
+        # 2. OR (It has sync tokens AND it did NOT fail at the start)
+        # This prevents rules from recovering immediately without consuming tokens,
+        # which would break backtracking in parent rules.
+
+        lines.append(
+            f"        token_at_start = self.tokens[start_pos] if start_pos < len(self.tokens) else None"
+        )
+        lines.append(f"        failed_at_start = (found == token_at_start)")
+
+        should_recover_cond = "False"
+        if rule.is_start:
+            should_recover_cond = "True"
+        elif sync_tokens and rule.name in sync_tokens:
+            should_recover_cond = "not failed_at_start"
+
+        lines.append(f"        should_recover = {should_recover_cond}")
+
+        lines.append(f"        if self.enable_recovery and should_recover:")
         lines.append(f"            if found is None:")
         lines.append(f"                raise error")
         lines.append(f"            self.add_error(error.message, token=found)")
@@ -279,6 +315,7 @@ def generate_parser(
         lines.append(f"            )")
         lines.append(f"            return error_node")
         lines.append(f"        ")
+
         lines.append(f"        raise error")
         lines.append("")
 

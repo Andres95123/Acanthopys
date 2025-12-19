@@ -56,6 +56,8 @@ class Lexer:
 class Parser:
     def __init__(self, tokens):
         self.tokens = tokens
+    def current(self):
+        return None
 """
         if not missing_parse_method:
             if parser_error:
@@ -304,6 +306,7 @@ class Node:
     def __repr__(self): return "Node(1, 2)"
 class Parser:
     def __init__(self, tokens): pass
+    def current(self): return None
     def parse_Start(self): return Node()
 """
         grammar = MockGrammar(

@@ -102,6 +102,19 @@ def run_tests_in_memory(
 
                 result = parse_method()
 
+                # Check for unconsumed tokens (EOF check)
+                # Only if result is not None (successful parse)
+                if result is not None:
+                    current_token = parser.current()
+                    if current_token is not None:
+                        # If there are tokens left, it's a failure unless we expected a failure
+                        # But wait, if we expected "Fail", catching the exception below handles it.
+                        # If we expected "Success" or "Yields", this is a failure.
+                        raise ParseError(
+                            f"Expected EOF, found {current_token.type}",
+                            token=current_token,
+                        )
+
                 if case.expectation == "Success":
                     print(f"    {Ansi.GREEN}✔{Ansi.RESET} {input_text} => Success")
                 elif case.expectation == "Fail":
