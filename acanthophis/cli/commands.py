@@ -60,64 +60,91 @@ def run_build(
     dry_run: bool = False,
     enable_recovery: bool = True,
     verbose: bool = False,
+    watch: bool = False,
 ) -> int:
     """Build/Generate the parser."""
-    logger = Logger(use_color=True, verbose=verbose)
-    start_time = time.perf_counter()
 
-    if not os.path.exists(input_path):
-        logger.error(f"Input file not found: {input_path}")
-        return 1
+    def build_step(path, **kwargs):
+        logger = Logger(use_color=True, verbose=verbose)
+        start_time = time.perf_counter()
 
-    logger.info(f"Building parser from {input_path}...")
+        if not os.path.exists(path):
+            logger.error(f"Input file not found: {path}")
+            return 1
 
-    try:
-        with open(input_path, "r", encoding="utf-8") as file:
-            content = file.read()
+        logger.info(f"Building parser from {path}...")
 
-        acantho_parser = Parser()
-        grammars = acantho_parser.parse(content)
+        try:
+            with open(path, "r", encoding="utf-8") as file:
+                content = file.read()
 
-        if not grammars:
-            logger.warn("No grammars found in file.")
+            acantho_parser = Parser()
+            grammars = acantho_parser.parse(content)
+
+            if not grammars:
+                logger.warn("No grammars found in file.")
+                return 0
+
+            for grammar in grammars:
+                logger.info(f"Compiling grammar: {grammar.name}")
+
+                generator = CodeGenerator(grammar, enable_recovery=enable_recovery)
+                code = generator.generate()
+
+                if grammar.tests and not no_tests:
+                    logger.info(f"Running tests for: {grammar.name}")
+                    success = run_tests_in_memory(grammar, code, logger)
+                    if not success:
+                        logger.error(f"Tests failed for grammar: {grammar.name}")
+                        return 1
+                    print_success("Tests passed!")
+
+                if not dry_run:
+                    output_filename = f"{grammar.name}_parser.py"
+                    output_path_full = os.path.join(output_dir, output_filename)
+                    os.makedirs(output_dir, exist_ok=True)
+
+                    with open(output_path_full, "w", encoding="utf-8") as f:
+                        f.write(code)
+                    print_success(f"Generated {output_path_full}")
+                else:
+                    logger.info("Dry run: No files written.")
+
+            duration = time.perf_counter() - start_time
+            print_info(f"Finished in {duration:.4f}s.")
             return 0
 
-        for grammar in grammars:
-            logger.info(f"Compiling grammar: {grammar.name}")
+        except Exception as e:
+            logger.error(f"Build failed: {e}")
+            if verbose:
+                import traceback
 
-            generator = CodeGenerator(grammar, enable_recovery=enable_recovery)
-            code = generator.generate()
+                traceback.print_exc()
+            return 1
 
-            if grammar.tests and not no_tests:
-                logger.info(f"Running tests for: {grammar.name}")
-                success = run_tests_in_memory(grammar, code, logger)
-                if not success:
-                    logger.error(f"Tests failed for grammar: {grammar.name}")
-                    return 1
-                print_success("Tests passed!")
+    if watch:
+        print_info(f"Watching {input_path} for changes...")
+        try:
+            # Initial build
+            build_step(input_path)
 
-            if not dry_run:
-                output_filename = f"{grammar.name}_parser.py"
-                output_path = os.path.join(output_dir, output_filename)
-                os.makedirs(output_dir, exist_ok=True)
-
-                with open(output_path, "w", encoding="utf-8") as f:
-                    f.write(code)
-                print_success(f"Generated {output_path}")
-            else:
-                logger.info("Dry run: No files written.")
-
-        duration = time.perf_counter() - start_time
-        print_info(f"Finished in {duration:.4f}s.")
-        return 0
-
-    except Exception as e:
-        logger.error(f"Build failed: {e}")
-        if verbose:
-            import traceback
-
-            traceback.print_exc()
-        return 1
+            last_mtime = os.path.getmtime(input_path)
+            while True:
+                time.sleep(0.5)
+                try:
+                    current_mtime = os.path.getmtime(input_path)
+                    if current_mtime != last_mtime:
+                        last_mtime = current_mtime
+                        print("\n" + "-" * 40)
+                        print_info(f"File changed. Rebuilding...")
+                        build_step(input_path)
+                except OSError:
+                    pass
+        except KeyboardInterrupt:
+            print_info("Stopping watch mode.")
+            return 0
+    else:
+        return build_step(input_path)
 
 
 def run_check(input_path: str, json_output: bool = False) -> int:

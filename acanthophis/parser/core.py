@@ -40,6 +40,7 @@ class Parser:
         for grammar_match in grammar_matches:
             grammar_name = grammar_match.group(1)
             grammar_text = grammar_match.group(2)
+            # print(f"DEBUG: grammar_text={repr(grammar_text)}")
             grammar_start_offset = grammar_match.start(2)
 
             token_block_matches = list(TOKENS_BLOCK_PATTERN.finditer(grammar_text))
@@ -72,6 +73,55 @@ class Parser:
                         )
                     )
 
+            # Implicit tokens logic
+            implicit_tokens = {}
+            existing_token_names = {t.name for t in tokens}
+
+            def get_implicit_token(literal_val):
+                val = literal_val[1:-1]
+                if val in implicit_tokens:
+                    return implicit_tokens[val]
+
+                name = None
+                if val.isalnum():
+                    name = f"KW_{val.upper()}"
+                else:
+                    symbol_map = {
+                        "+": "PLUS",
+                        "-": "MINUS",
+                        "*": "STAR",
+                        "/": "SLASH",
+                        "(": "LPAREN",
+                        ")": "RPAREN",
+                        "{": "LBRACE",
+                        "}": "RBRACE",
+                        "[": "LBRACKET",
+                        "]": "RBRACKET",
+                        ",": "COMMA",
+                        ".": "DOT",
+                        ":": "COLON",
+                        ";": "SEMI",
+                        "=": "EQ",
+                        "<": "LT",
+                        ">": "GT",
+                        "!": "BANG",
+                        "&": "AMP",
+                        "|": "PIPE",
+                    }
+                    if val in symbol_map:
+                        name = f"SYM_{symbol_map[val]}"
+                    else:
+                        name = f"LIT_{val.encode('utf-8').hex().upper()}"
+
+                while name in existing_token_names:
+                    name += "_IMP"
+
+                existing_token_names.add(name)
+                implicit_tokens[val] = name
+                # Insert at the beginning to ensure priority over general tokens like ID
+                tokens.insert(0, Token(name, False, re.escape(val), 0))
+                return name
+
             rules_matches = list(RULE_PATTERN.finditer(grammar_text))
             rules: list[Rule] = []
             start_rules_count = 0
@@ -97,7 +147,13 @@ class Parser:
                     for var_name, term_name, quantifier in TERM_PATTERN.findall(
                         expresion_line
                     ):
-                        terms.append(Term(term_name, var_name, quantifier or None))
+                        if (term_name.startswith("'") and term_name.endswith("'")) or (
+                            term_name.startswith('"') and term_name.endswith('"')
+                        ):
+                            token_name = get_implicit_token(term_name)
+                            terms.append(Term(token_name, var_name, quantifier or None))
+                        else:
+                            terms.append(Term(term_name, var_name, quantifier or None))
 
                     return_object = return_object_raw.strip()
                     check_guard = None

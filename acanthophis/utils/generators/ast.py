@@ -24,6 +24,11 @@ def generate_ast_nodes(grammar: "Grammar") -> str:
                     node_names.add(name)
             else:
                 if ret not in BUILTINS:
+                    # Check for string literals
+                    if (ret.startswith('"') and ret.endswith('"')) or (
+                        ret.startswith("'") and ret.endswith("'")
+                    ):
+                        continue
                     node_names.add(ret)
 
     lines = []

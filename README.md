@@ -97,6 +97,70 @@ Want to play with your language? Launch the REPL:
 python -m acanthophis repl Calculator.apy
 ```
 
+### 6. Watch Mode (New!)
+
+Iterate faster by watching your grammar file for changes.
+
+**REPL:**
+The REPL automatically reloads when you save your grammar file (enabled by default).
+```bash
+python -m acanthophis repl Calculator.apy
+# To disable:
+python -m acanthophis repl Calculator.apy --no-watch
+```
+
+**Build:**
+You can also watch for changes during build:
+```bash
+python -m acanthophis build Calculator.apy --watch
+```
+
+---
+
+## ✨ New Features (v0.2)
+
+### 1. Inline Literals
+You no longer need to define every single token in the `tokens` block. You can use string literals directly in your rules!
+
+```acanthophis
+rule Statement:
+    | "if" cond:Expr "then" body:Stmt -> If(cond, body)
+    | "(" expr:Expr ")" -> expr
+```
+Acanthophis automatically generates the necessary tokens for you.
+
+### 2. Flexible Quotes
+Use single `'` or double `"` quotes for strings, just like in Python.
+
+```acanthophis
+rule String:
+    | "double quoted" -> "ok"
+    | 'single quoted' -> 'ok'
+```
+
+### 3. Semantic Checks & Error Reporting
+You can now perform complex semantic checks directly in your grammar and report custom errors using the `error()` function.
+
+```acanthophis
+rule Age:
+    | n:NUMBER -> int(n)
+      check int(n) >= 18
+      then pass
+      else then error("Must be 18 or older")
+```
+
+### 4. Multiline Check Guards
+Check guards can now span multiple lines for better readability.
+
+```acanthophis
+rule ComplexCheck:
+    | val:Value -> val
+      check val.is_valid() and
+            val.has_permission()
+      then process(val)
+      else then error("Invalid value")
+```
+
 ---
 
 ## 💻 Using the Generated Parser

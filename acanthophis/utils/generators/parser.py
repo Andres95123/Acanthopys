@@ -1,3 +1,4 @@
+import textwrap
 from typing import TYPE_CHECKING, Dict
 
 if TYPE_CHECKING:
@@ -86,10 +87,15 @@ def generate_parser(
     lines.append('        """Get all recorded errors."""')
     lines.append("        return self.errors.copy()")
     lines.append("")
+    lines.append("    def error(self, msg):")
+    lines.append("        raise ParseError(msg, token=self.current())")
+    lines.append("")
 
     for rule in grammar.rules:
         lines.append(f"    def _parse_{rule.name}_body(self):")
         lines.append(f"        start_pos = self.pos")
+        lines.append(f"        error = self.error")
+        lines.append(f"        failures = []")
 
         for i, expr in enumerate(rule.expressions):
             lines.append(f"        # Option {i}")
@@ -202,56 +208,59 @@ def generate_parser(
             # Return object
             ret = expr.return_object
             if ret == "pass":
-                # If pass, we usually return the child if there's only one, or None?
-                # "pass eleva el hijo sin crear nodo nuevo"
-                # If we have variables, return the first one?
-                # Usually 'pass' in this context means return the value of the child.
-                # If there is a variable named 'child' or 'inner', return it.
-                # Or just return the last parsed value?
-                # Let's look at the grammar: | child:Term -> pass
-                # | '(' inner:Expression ')' -> pass
-                # So we return the variable.
-
-                # Find the variable to return
-                # If there is only one variable, return it.
                 if vars_collected:
-                    lines.append(f"            res = {vars_collected[0]}")  # Naive
+                    lines.append(f"            res = {vars_collected[0]}")
                 else:
                     lines.append(f"            res = None")
             else:
-                # Construct the node
-                # If it's a call like NumberNode(float(value))
-                if "(" in ret:
-                    # It's a python expression using the variables
+                # Check for string literals
+                if (ret.startswith('"') and ret.endswith('"')) or (
+                    ret.startswith("'") and ret.endswith("'")
+                ):
+                    lines.append(f"            res = {ret}")
+                elif "(" in ret:
                     lines.append(f"            res = {ret}")
                 elif ret in vars_collected:
-                    # It's a variable name, return it directly
                     lines.append(f"            res = {ret}")
                 else:
-                    # It's a class name, pass vars as kwargs
                     args = ", ".join(f"{v}={v}" for v in vars_collected if v != "_")
                     lines.append(f"            res = {ret}({args})")
 
             if expr.check_guard:
                 lines.append(f"            # Check Guard")
                 lines.append(f"            if {expr.check_guard.condition}:")
-                lines.append(f"                {expr.check_guard.then_code}")
+
+                then_code = textwrap.dedent(expr.check_guard.then_code)
+                for line in then_code.splitlines():
+                    lines.append(f"                {line}")
+
                 if expr.check_guard.else_code:
                     lines.append(f"            else:")
-                    lines.append(f"                {expr.check_guard.else_code}")
+                    else_code = textwrap.dedent(expr.check_guard.else_code)
+                    for line in else_code.splitlines():
+                        lines.append(f"                {line}")
 
             # Success handling for memoization
             lines.append(f"            return res")
 
             lines.append(f"        except ParseError as e:")
+            lines.append(f"            failures.append(e)")
             lines.append(f"            pass")
 
         # Failure handling for memoization with recovery support
         lines.append(f"        # All alternatives failed for {rule.name}")
         lines.append(f"        found = self.current()")
+        lines.append(f"        msg = 'No alternative matched for {rule.name}'")
+        lines.append(f"        if failures:")
+        lines.append(f"            for f in failures:")
         lines.append(
-            f"        error = ParseError('No alternative matched for {rule.name}', token=found)"
+            f"                if not f.message.startswith('Expected ') and not f.message.startswith('No alternative') and not f.message.startswith('Left recursion detected'):"
         )
+        lines.append(f"                    msg = f.message")
+        lines.append(f"                    found = f.token")
+        lines.append(f"                    break")
+
+        lines.append(f"        error = ParseError(msg, token=found)")
         lines.append(f"        ")
         lines.append(f"        if self.enable_recovery:")
         lines.append(f"            if found is None:")
@@ -304,10 +313,13 @@ def generate_parser(
         lines.append(f"                self.memo[key] = (e, start_pos)")
         lines.append(f"                raise e")
         lines.append(f"            res = None")
+        lines.append(f"            failure_cause = e")
         lines.append(f"        ")
         lines.append(f"        if rec.detected:")
         lines.append(f"            if res is None:")
         lines.append(f"                del self.memo[key]")
+        lines.append(f"                if 'failure_cause' in locals():")
+        lines.append(f"                    raise failure_cause")
         lines.append(f"                raise ParseError('Failed after recursion')")
         lines.append(f"            ")
         lines.append(f"            rec.seed = (res, self.pos)")

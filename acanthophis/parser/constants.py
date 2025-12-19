@@ -55,13 +55,12 @@ TOKEN_LINE_PATTERN = re.compile(
 
 EXPRESSION_OPTION_PATTERN = re.compile(
     r"""
-    (?m)
+    (?ms)
     ^\s*\|\s*           
     (.*?)\s*            
     ->\s*               
-    ([^#\n]+)           
-    (?:\s*\#.*)?        
-    $
+    (.*?)               
+    (?=\n\s*\||\Z) 
 """,
     re.VERBOSE,
 )
@@ -75,7 +74,9 @@ TERM_PATTERN = re.compile(
     (                   
         \w+             
         |               
-        '[^']*'         
+        '[^']*'
+        |
+        "[^"]*"         
     )
     ([+*?])?
     """,
@@ -114,7 +115,8 @@ TEST_CASE_START_PATTERN = re.compile(
 
 CHECK_GUARD_PATTERN = re.compile(
     r"""
-    \s+check\s+
+    (?s)
+    (?:^|\s+)check\s+
     (.+?)
     \s+then\s+
     (.+?)

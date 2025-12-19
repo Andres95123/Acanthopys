@@ -22,6 +22,9 @@ class Token:
     def __repr__(self):
         return f"{self.value!r}"
 
+    def __len__(self):
+        return len(self.value)
+
 class ParseError(Exception):
     \"\"\"Exception raised when parsing fails.\"\"\"
     def __init__(self, message: str, token=None, expected: list = None):

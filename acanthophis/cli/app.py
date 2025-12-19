@@ -110,6 +110,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     build_parser.add_argument(
         "-v", "--verbose", action="store_true", help="Verbose output"
     )
+    build_parser.add_argument(
+        "--watch", action="store_true", help="Watch for changes and rebuild"
+    )
 
     # CHECK (Lint)
     check_parser = subparsers.add_parser(
@@ -148,6 +151,9 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     repl_parser.add_argument("input", metavar="FILE", help="Path to .apy file")
     repl_parser.add_argument("--rule", help="Start rule to use")
+    repl_parser.add_argument(
+        "--no-watch", action="store_true", help="Disable auto-reload on file change"
+    )
 
     return parser
 
@@ -182,6 +188,7 @@ def main() -> None:
             args.dry_run,
             not args.no_recovery,
             args.verbose,
+            args.watch,
         )
     elif cmd in ["check", "lint"]:
         ret = run_check(args.input, args.json)
@@ -190,7 +197,7 @@ def main() -> None:
     elif cmd in ["test"]:
         ret = run_test(args.input, args.verbose)
     elif cmd in ["repl"]:
-        ret = run_repl(args.input, args.rule)
+        ret = run_repl(args.input, args.rule, not args.no_watch)
     else:
         parser.print_help()
         ret = 1
